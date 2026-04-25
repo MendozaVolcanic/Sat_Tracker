@@ -1,25 +1,44 @@
 # Sat_Tracker — Monitoreo de pasajes satelitales sobre volcanes Chile
 
-**Estado:** Fase 1 implementada (tabla + mapa en vivo + timeline 24 h).
+🌐 **Sitio público en vivo:** https://mendozavolcanic.github.io/Sat_Tracker/
+
+**Estado:** Fases 1 + 2 + 3 implementadas. Globo 3D web público (GitHub Pages) + dashboard Streamlit local con alertas.
 **Objetivo:** Dashboard que muestra cuándo pasa cada satélite de observación
 sobre los 43 volcanes activos de Chile (catálogo SERNAGEOMIN/RNVV), y cuándo
 estarán los datos disponibles para descarga.
 
-## Quickstart
+## Dos formas de uso
+
+### A) Página pública (GitHub Pages) — recomendada
+
+Globo 3D en navegador con cálculo orbital (SGP4) en cliente, sin servidor:
+
+🌐 **https://mendozavolcanic.github.io/Sat_Tracker/**
+
+- Globo 3D interactivo (`globe.gl` + `three.js`)
+- Posición en vivo de los 14 satélites polares + trazas terrestres 90 min
+- Click en cualquier volcán → tabla de pasajes próximas 24 h
+- TLEs refrescados diariamente vía GitHub Action desde Celestrak
+- Funciona en cualquier navegador, móvil incluido
+
+### B) Dashboard Streamlit local — análisis avanzado
 
 ```bash
 pip install -r requirements.txt
 streamlit run dashboard/app.py
 ```
 
-La primera vez baja TLEs frescos de Celestrak (~5 MB, cache 6 h en `data/`).
+6 tabs:
+- **📋 Tabla pasajes** — volcán × satélite con último/próximo + latencia NRT (CSV download).
+- **🌍 Mapa en vivo** — Plotly 2D con posición y traza, auto-refresh 30 s.
+- **🌐 Globo 3D** — pydeck con altitudes reales de los sats.
+- **⏱️ Timeline 24 h** — gantt de pasajes por volcán.
+- **🔔 Alertas** (Fase 3) — pasajes en próximos N min, descarga JSONL/TXT, push a webhook (Slack/Discord/Teams).
+- **📡 Geoestacionarios** — GOES-19 / Himawari-9 / MTG-I1.
 
-## Qué muestra
+## Refresh de TLEs
 
-- **📋 Tabla pasajes** — para cada volcán × satélite: último pasaje, próximo pasaje, elevación máxima, hora estimada de disponibilidad NRT del producto.
-- **🌍 Mapa en vivo** — posición actual de cada satélite polar + traza terrestre próximos 90 min, sobre mapa-mundi. Auto-refresh 30 s.
-- **⏱️ Timeline 24 h** — gantt de pasajes próximas 24 h sobre un volcán seleccionado.
-- **📡 Geoestacionarios** — GOES-19 / Himawari-9 / MTG-I1: tabla de cadencia y latencia (no se calcula pasaje, siempre arriba).
+GitHub Action (`.github/workflows/update_tles.yml`) corre todos los días a las 06:00 UTC, baja TLEs frescos de Celestrak (per-CATNR para no chocar con rate-limit del endpoint `GROUP=active`) y commitea `web/data/tle.json` si cambió. Manual: ejecutar `python scripts/export_data.py`.
 
 ## Por qué este proyecto
 

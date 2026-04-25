@@ -15,11 +15,13 @@ from pathlib import Path
 
 import requests
 
-CELESTRAK_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"
+CELESTRAK_CATNR = "https://celestrak.org/NORAD/elements/gp.php?CATNR={catnr}&FORMAT=tle"
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CACHE_FILE = DATA_DIR / "tle_cache.txt"
 META_FILE = DATA_DIR / "tle_cache.meta"
 MAX_AGE_S = 6 * 3600  # 6 horas
+
+USER_AGENT = "Mozilla/5.0 (compatible; Sat_Tracker/0.1; +https://github.com/MendozaVolcanic/Sat_Tracker)"
 
 
 def _cache_age_s() -> float:
@@ -31,20 +33,46 @@ def _cache_age_s() -> float:
         return float("inf")
 
 
-def _download() -> str:
-    r = requests.get(CELESTRAK_URL, timeout=30)
-    r.raise_for_status()
-    return r.text
+def _download_one(catnr: int) -> str | None:
+    """Baja TLE de un solo sat. Devuelve texto (3 líneas) o None si falla."""
+    try:
+        r = requests.get(
+            CELESTRAK_CATNR.format(catnr=catnr),
+            timeout=30,
+            headers={"User-Agent": USER_AGENT},
+        )
+        if r.status_code != 200:
+            return None
+        text = r.text.strip()
+        if "No GP data found" in text or len(text.splitlines()) < 3:
+            return None
+        return text
+    except requests.RequestException:
+        return None
 
 
-def get_tle_text(force_refresh: bool = False) -> str:
+def _download_many(catnrs: list[int]) -> str:
+    chunks = []
+    for c in catnrs:
+        t = _download_one(c)
+        if t:
+            chunks.append(t)
+        time.sleep(0.3)  # cortesía Celestrak
+    return "\n".join(chunks) + "\n"
+
+
+def get_tle_text(catnrs: list[int], force_refresh: bool = False) -> str:
     """Devuelve texto TLE crudo (3 líneas por sat: name + L1 + L2)."""
     DATA_DIR.mkdir(exist_ok=True)
     if not force_refresh and CACHE_FILE.exists() and _cache_age_s() < MAX_AGE_S:
         return CACHE_FILE.read_text(encoding="utf-8")
-    text = _download()
-    CACHE_FILE.write_text(text, encoding="utf-8")
-    META_FILE.write_text(str(time.time()))
+    text = _download_many(catnrs)
+    if text.strip():
+        CACHE_FILE.write_text(text, encoding="utf-8")
+        META_FILE.write_text(str(time.time()))
+    elif CACHE_FILE.exists():
+        # fallback: si ningún sat respondió, devolver cache aunque vieja
+        return CACHE_FILE.read_text(encoding="utf-8")
     return text
 
 
@@ -68,7 +96,7 @@ def parse_tles(text: str) -> dict[int, tuple[str, str, str]]:
 
 def get_tles_for(norad_ids: list[int], force_refresh: bool = False) -> dict[int, tuple[str, str, str]]:
     """Devuelve sólo los TLEs solicitados."""
-    parsed = parse_tles(get_tle_text(force_refresh))
+    parsed = parse_tles(get_tle_text(norad_ids, force_refresh))
     return {nid: parsed[nid] for nid in norad_ids if nid in parsed}
 
 

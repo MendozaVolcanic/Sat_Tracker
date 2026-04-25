@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sat_Tracker — pasajes satelitales sobre volcanes Chile</title>
+<meta name="description" content="Visualización en tiempo real de pasajes de satélites de teledetección (TROPOMI, MODIS, VIIRS, Landsat, Sentinel, IASI) sobre los 43 volcanes activos de Chile (RNVV/SERNAGEOMIN)." />
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<header>
+  <div class="title">
+    <span class="logo">🛰️</span>
+    <div>
+      <h1>Sat_Tracker</h1>
+      <p class="sub">Pasajes satelitales sobre los 43 volcanes activos de Chile · RNVV / SERNAGEOMIN</p>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div><span class="lbl">UTC ahora</span><span id="now-utc">—</span></div>
+    <div><span class="lbl">TLE actualizado</span><span id="tle-age">—</span></div>
+    <div><a href="https://github.com/MendozaVolcanic/Sat_Tracker" target="_blank" rel="noopener">GitHub ↗</a></div>
+  </div>
+</header>
+
+<main>
+  <section id="globe-section">
+    <div id="globeViz"></div>
+    <div class="legend">
+      <div class="legend-row"><span class="dot volc"></span> Volcán activo (rojo si prioritario)</div>
+      <div class="legend-row"><span class="dot sat"></span> Satélite — posición ahora</div>
+      <div class="legend-row"><span class="line"></span> Traza terrestre próximos 90 min</div>
+      <button id="btn-chile">Centrar Chile</button>
+      <button id="btn-world">Vista global</button>
+      <label><input type="checkbox" id="chk-tracks" checked /> Mostrar trazas</label>
+      <label><input type="checkbox" id="chk-labels" checked /> Etiquetas sat</label>
+    </div>
+  </section>
+
+  <aside id="sidebar">
+    <div class="panel">
+      <h2>Volcán</h2>
+      <select id="volcano-select"></select>
+      <div id="volcano-info" class="muted small"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Próximos pasajes 24 h</h2>
+      <p class="muted small">Elev. mínima 20°. Datos NRT = pasaje + latencia del producto.</p>
+      <table id="passes-table">
+        <thead><tr><th>Sat</th><th>Inicio (UTC)</th><th>Elev</th><th>Datos ~</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Satélites en este momento</h2>
+      <table id="now-table">
+        <thead><tr><th>Sat</th><th>Lat</th><th>Lon</th><th>Alt km</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Geoestacionarios</h2>
+      <table id="geo-table">
+        <thead><tr><th>Sat</th><th>Cadencia</th><th>Latencia</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Sobre este proyecto</h2>
+      <p class="small">
+        Cálculo orbital con <a href="https://github.com/shashwatak/satellite-js" target="_blank" rel="noopener">satellite.js</a> (SGP4)
+        usando TLEs de <a href="https://celestrak.org" target="_blank" rel="noopener">Celestrak</a>,
+        actualizados diariamente vía GitHub Actions.
+        Globo 3D con <a href="https://github.com/vasturiano/globe.gl" target="_blank" rel="noopener">globe.gl</a>.
+      </p>
+      <p class="small">
+        Latencias NRT son estimadas (±50%). Cálculo en navegador, sin servidor.
+      </p>
+    </div>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

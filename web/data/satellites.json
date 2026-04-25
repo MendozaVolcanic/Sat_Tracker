@@ -1,0 +1,172 @@
+[
+  {
+    "name": "Sentinel-5P",
+    "sensor": "TROPOMI",
+    "norad_id": 42969,
+    "kind": "polar",
+    "product": "L2 SO₂ columna troposférica (5.5×3.5 km)",
+    "nrt_latency_min": 180,
+    "access_url": "https://dataspace.copernicus.eu/",
+    "note": "Estándar para SO₂ cuantitativo. ~13:30 LT descendente."
+  },
+  {
+    "name": "Terra",
+    "sensor": "MODIS",
+    "norad_id": 25994,
+    "kind": "polar",
+    "product": "MOD14 hot spots, MOD06 ash RGB",
+    "nrt_latency_min": 150,
+    "access_url": "https://lance.modaps.eosdis.nasa.gov/",
+    "note": "~10:30 LT descendente."
+  },
+  {
+    "name": "Aqua",
+    "sensor": "MODIS",
+    "norad_id": 27424,
+    "kind": "polar",
+    "product": "MYD14 hot spots, MYD06 ash RGB",
+    "nrt_latency_min": 150,
+    "access_url": "https://lance.modaps.eosdis.nasa.gov/",
+    "note": "~13:30 LT ascendente. Cierra el día con Terra."
+  },
+  {
+    "name": "Suomi-NPP",
+    "sensor": "VIIRS",
+    "norad_id": 37849,
+    "kind": "polar",
+    "product": "VNP14 active fires 375 m (NRT)",
+    "nrt_latency_min": 30,
+    "access_url": "https://firms.modaps.eosdis.nasa.gov/",
+    "note": "VIIRS 375 m = mejor para hot spots volcánicos NRT."
+  },
+  {
+    "name": "NOAA-20",
+    "sensor": "VIIRS",
+    "norad_id": 43013,
+    "kind": "polar",
+    "product": "VJ114 active fires 375 m (NRT)",
+    "nrt_latency_min": 30,
+    "access_url": "https://firms.modaps.eosdis.nasa.gov/",
+    "note": "~50 min antes que S-NPP en mismo plano."
+  },
+  {
+    "name": "NOAA-21",
+    "sensor": "VIIRS",
+    "norad_id": 54234,
+    "kind": "polar",
+    "product": "VJ214 active fires 375 m (NRT)",
+    "nrt_latency_min": 30,
+    "access_url": "https://firms.modaps.eosdis.nasa.gov/",
+    "note": ""
+  },
+  {
+    "name": "Landsat 8",
+    "sensor": "OLI/TIRS",
+    "norad_id": 39084,
+    "kind": "polar",
+    "product": "TIRS B10/B11 térmico 100 m, OLI 30 m",
+    "nrt_latency_min": 540,
+    "access_url": "https://earthexplorer.usgs.gov/",
+    "note": "Cada 16 días por path/row. Reanálisis post-evento."
+  },
+  {
+    "name": "Landsat 9",
+    "sensor": "OLI-2/TIRS-2",
+    "norad_id": 49260,
+    "kind": "polar",
+    "product": "TIRS B10/B11 térmico 100 m, OLI 30 m",
+    "nrt_latency_min": 540,
+    "access_url": "https://earthexplorer.usgs.gov/",
+    "note": "Offset 8 d con L8 → revisita combinada 8 d."
+  },
+  {
+    "name": "Sentinel-2A",
+    "sensor": "MSI",
+    "norad_id": 40697,
+    "kind": "polar",
+    "product": "L2A multibanda 10/20/60 m",
+    "nrt_latency_min": 720,
+    "access_url": "https://dataspace.copernicus.eu/",
+    "note": "Cada 10 d. Combinado con 2B → 5 d."
+  },
+  {
+    "name": "Sentinel-2B",
+    "sensor": "MSI",
+    "norad_id": 42063,
+    "kind": "polar",
+    "product": "L2A multibanda 10/20/60 m",
+    "nrt_latency_min": 720,
+    "access_url": "https://dataspace.copernicus.eu/",
+    "note": ""
+  },
+  {
+    "name": "Sentinel-3A",
+    "sensor": "OLCI/SLSTR",
+    "norad_id": 41335,
+    "kind": "polar",
+    "product": "SLSTR FRP, OLCI multibanda",
+    "nrt_latency_min": 240,
+    "access_url": "https://dataspace.copernicus.eu/",
+    "note": ""
+  },
+  {
+    "name": "Sentinel-3B",
+    "sensor": "OLCI/SLSTR",
+    "norad_id": 43437,
+    "kind": "polar",
+    "product": "SLSTR FRP, OLCI multibanda",
+    "nrt_latency_min": 240,
+    "access_url": "https://dataspace.copernicus.eu/",
+    "note": ""
+  },
+  {
+    "name": "MetOp-B",
+    "sensor": "IASI",
+    "norad_id": 38771,
+    "kind": "polar",
+    "product": "IASI SO₂ column (LMD/ULB)",
+    "nrt_latency_min": 540,
+    "access_url": "https://eumetview.eumetsat.int/",
+    "note": "~21:30 LT — complementa TROPOMI con paso nocturno."
+  },
+  {
+    "name": "MetOp-C",
+    "sensor": "IASI",
+    "norad_id": 43689,
+    "kind": "polar",
+    "product": "IASI SO₂ column (LMD/ULB)",
+    "nrt_latency_min": 540,
+    "access_url": "https://eumetview.eumetsat.int/",
+    "note": ""
+  },
+  {
+    "name": "GOES-19",
+    "sensor": "ABI",
+    "norad_id": null,
+    "kind": "geo",
+    "product": "ABI L1b Full Disk 10 min, Ash RGB, FDCF hot spots",
+    "nrt_latency_min": 5,
+    "access_url": "https://www.star.nesdis.noaa.gov/GOES/",
+    "note": "75°W. Cobertura Chile = limbo este. Cadencia 10 min FD / 5 min CONUS."
+  },
+  {
+    "name": "Himawari-9",
+    "sensor": "AHI",
+    "norad_id": null,
+    "kind": "geo",
+    "product": "AHI Full Disk 10 min",
+    "nrt_latency_min": 5,
+    "access_url": "https://www.eorc.jaxa.jp/ptree/",
+    "note": "140.7°E. Cobertura Chile marginal — limbo opuesto."
+  },
+  {
+    "name": "MTG-I1",
+    "sensor": "FCI",
+    "norad_id": null,
+    "kind": "geo",
+    "product": "FCI Full Disk 10 min",
+    "nrt_latency_min": 10,
+    "access_url": "https://eumetview.eumetsat.int/",
+    "note": "0°. NO cubre Chile (Atlántico/África)."
+  }
+]

@@ -1,0 +1,432 @@
+[
+  {
+    "name": "Taapaca",
+    "lat": -18.1,
+    "lon": -69.5,
+    "elevation_m": 5860,
+    "region": "Arica y Parinacota",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Parinacota",
+    "lat": -18.17,
+    "lon": -69.14,
+    "elevation_m": 6348,
+    "region": "Arica y Parinacota",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Guallatiri",
+    "lat": -18.42,
+    "lon": -69.09,
+    "elevation_m": 6071,
+    "region": "Arica y Parinacota",
+    "zone": "norte",
+    "ranking": 15,
+    "priority": false
+  },
+  {
+    "name": "Isluga",
+    "lat": -19.15,
+    "lon": -68.83,
+    "elevation_m": 5550,
+    "region": "Tarapacá",
+    "zone": "norte",
+    "ranking": 18,
+    "priority": false
+  },
+  {
+    "name": "Irruputuncu",
+    "lat": -20.73,
+    "lon": -68.56,
+    "elevation_m": 5163,
+    "region": "Tarapacá",
+    "zone": "norte",
+    "ranking": 22,
+    "priority": false
+  },
+  {
+    "name": "Olca",
+    "lat": -20.95,
+    "lon": -68.48,
+    "elevation_m": 5407,
+    "region": "Tarapacá",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Aucanquilcha",
+    "lat": -21.22,
+    "lon": -68.47,
+    "elevation_m": 6176,
+    "region": "Antofagasta",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Ollagüe",
+    "lat": -21.3,
+    "lon": -68.18,
+    "elevation_m": 5868,
+    "region": "Antofagasta",
+    "zone": "norte",
+    "ranking": 25,
+    "priority": false
+  },
+  {
+    "name": "San Pedro",
+    "lat": -21.88,
+    "lon": -68.4,
+    "elevation_m": 6145,
+    "region": "Antofagasta",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Putana",
+    "lat": -22.57,
+    "lon": -67.85,
+    "elevation_m": 5890,
+    "region": "Antofagasta",
+    "zone": "norte",
+    "ranking": 23,
+    "priority": false
+  },
+  {
+    "name": "Láscar",
+    "lat": -23.37,
+    "lon": -67.73,
+    "elevation_m": 5592,
+    "region": "Antofagasta",
+    "zone": "norte",
+    "ranking": 4,
+    "priority": true
+  },
+  {
+    "name": "Lastarria",
+    "lat": -25.17,
+    "lon": -68.5,
+    "elevation_m": 5697,
+    "region": "Atacama",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Ojos del Salado",
+    "lat": -27.12,
+    "lon": -68.54,
+    "elevation_m": 6893,
+    "region": "Atacama",
+    "zone": "norte",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Planchón-Peteroa",
+    "lat": -35.24,
+    "lon": -70.57,
+    "elevation_m": 4107,
+    "region": "Maule",
+    "zone": "centro",
+    "ranking": 12,
+    "priority": false
+  },
+  {
+    "name": "Descabezado Grande",
+    "lat": -35.58,
+    "lon": -70.75,
+    "elevation_m": 3953,
+    "region": "Maule",
+    "zone": "centro",
+    "ranking": 10,
+    "priority": false
+  },
+  {
+    "name": "Cerro Azul / Quizapu",
+    "lat": -35.65,
+    "lon": -70.76,
+    "elevation_m": 3788,
+    "region": "Maule",
+    "zone": "centro",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Laguna del Maule",
+    "lat": -36.02,
+    "lon": -70.49,
+    "elevation_m": 3092,
+    "region": "Maule",
+    "zone": "centro",
+    "ranking": 7,
+    "priority": false
+  },
+  {
+    "name": "Nevado de Longaví",
+    "lat": -36.19,
+    "lon": -71.16,
+    "elevation_m": 3242,
+    "region": "Maule",
+    "zone": "centro",
+    "ranking": 19,
+    "priority": false
+  },
+  {
+    "name": "Nevados de Chillán",
+    "lat": -36.86,
+    "lon": -71.38,
+    "elevation_m": 3212,
+    "region": "Ñuble",
+    "zone": "centro",
+    "ranking": 5,
+    "priority": true
+  },
+  {
+    "name": "Antuco",
+    "lat": -37.41,
+    "lon": -71.35,
+    "elevation_m": 2979,
+    "region": "Biobío",
+    "zone": "centro",
+    "ranking": 14,
+    "priority": false
+  },
+  {
+    "name": "Copahue",
+    "lat": -37.85,
+    "lon": -71.17,
+    "elevation_m": 2997,
+    "region": "Biobío",
+    "zone": "centro",
+    "ranking": 6,
+    "priority": true
+  },
+  {
+    "name": "Callaqui",
+    "lat": -37.92,
+    "lon": -71.45,
+    "elevation_m": 3164,
+    "region": "Biobío",
+    "zone": "centro",
+    "ranking": 17,
+    "priority": false
+  },
+  {
+    "name": "Lonquimay",
+    "lat": -38.38,
+    "lon": -71.59,
+    "elevation_m": 2865,
+    "region": "Araucanía",
+    "zone": "sur",
+    "ranking": 9,
+    "priority": false
+  },
+  {
+    "name": "Llaima",
+    "lat": -38.69,
+    "lon": -71.73,
+    "elevation_m": 3125,
+    "region": "Araucanía",
+    "zone": "sur",
+    "ranking": 2,
+    "priority": true
+  },
+  {
+    "name": "Sollipulli",
+    "lat": -38.97,
+    "lon": -71.52,
+    "elevation_m": 2282,
+    "region": "Araucanía",
+    "zone": "sur",
+    "ranking": 11,
+    "priority": false
+  },
+  {
+    "name": "Villarrica",
+    "lat": -39.42,
+    "lon": -71.93,
+    "elevation_m": 2847,
+    "region": "Araucanía",
+    "zone": "sur",
+    "ranking": 1,
+    "priority": true
+  },
+  {
+    "name": "Quetrupillán",
+    "lat": -39.5,
+    "lon": -71.7,
+    "elevation_m": 2360,
+    "region": "Araucanía",
+    "zone": "sur",
+    "ranking": 16,
+    "priority": false
+  },
+  {
+    "name": "Lanín",
+    "lat": -39.64,
+    "lon": -71.5,
+    "elevation_m": 3747,
+    "region": "Araucanía",
+    "zone": "sur",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Mocho-Choshuenco",
+    "lat": -39.93,
+    "lon": -72.03,
+    "elevation_m": 2422,
+    "region": "Los Ríos",
+    "zone": "sur",
+    "ranking": 8,
+    "priority": false
+  },
+  {
+    "name": "Puyehue-Cordón Caulle",
+    "lat": -40.59,
+    "lon": -72.12,
+    "elevation_m": 2236,
+    "region": "Los Ríos",
+    "zone": "sur",
+    "ranking": 3,
+    "priority": true
+  },
+  {
+    "name": "Casablanca / Antillanca",
+    "lat": -40.77,
+    "lon": -72.15,
+    "elevation_m": 1990,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Osorno",
+    "lat": -41.1,
+    "lon": -72.49,
+    "elevation_m": 2652,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 13,
+    "priority": false
+  },
+  {
+    "name": "Calbuco",
+    "lat": -41.33,
+    "lon": -72.61,
+    "elevation_m": 2003,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 3,
+    "priority": true
+  },
+  {
+    "name": "Yate",
+    "lat": -41.76,
+    "lon": -72.4,
+    "elevation_m": 2187,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Hornopirén",
+    "lat": -41.87,
+    "lon": -72.43,
+    "elevation_m": 1572,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Huequi",
+    "lat": -42.38,
+    "lon": -72.58,
+    "elevation_m": 1318,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 20,
+    "priority": false
+  },
+  {
+    "name": "Michinmahuida",
+    "lat": -42.79,
+    "lon": -72.44,
+    "elevation_m": 2404,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 21,
+    "priority": false
+  },
+  {
+    "name": "Chaitén",
+    "lat": -42.83,
+    "lon": -72.65,
+    "elevation_m": 1122,
+    "region": "Los Lagos",
+    "zone": "sur",
+    "ranking": 3,
+    "priority": false
+  },
+  {
+    "name": "Corcovado",
+    "lat": -43.19,
+    "lon": -72.08,
+    "elevation_m": 2300,
+    "region": "Los Lagos",
+    "zone": "austral",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Melimoyu",
+    "lat": -44.08,
+    "lon": -72.87,
+    "elevation_m": 2400,
+    "region": "Aysén",
+    "zone": "austral",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Mentolat",
+    "lat": -44.7,
+    "lon": -73.08,
+    "elevation_m": 1660,
+    "region": "Aysén",
+    "zone": "austral",
+    "ranking": 0,
+    "priority": false
+  },
+  {
+    "name": "Hudson",
+    "lat": -45.9,
+    "lon": -72.97,
+    "elevation_m": 1905,
+    "region": "Aysén",
+    "zone": "austral",
+    "ranking": 3,
+    "priority": true
+  },
+  {
+    "name": "Lautaro",
+    "lat": -49.02,
+    "lon": -73.55,
+    "elevation_m": 3607,
+    "region": "Magallanes",
+    "zone": "austral",
+    "ranking": 24,
+    "priority": false
+  }
+]

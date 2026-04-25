@@ -130,10 +130,12 @@ if not tles:
 
 # ── Tabs ────────────────────────────────────────────────────────────────
 
-tab_table, tab_globe, tab_timeline, tab_geo = st.tabs([
+tab_table, tab_globe, tab_globe3d, tab_timeline, tab_alerts, tab_geo = st.tabs([
     "📋 Tabla pasajes",
     "🌍 Mapa en vivo",
+    "🌐 Globo 3D",
     "⏱️ Timeline 24 h",
+    "🔔 Alertas",
     "📡 Geoestacionarios",
 ])
 
@@ -290,6 +292,67 @@ with tab_globe:
         st.plotly_chart(fig2, use_container_width=True)
 
 
+# ── Tab 2b: Globo 3D (pydeck) ───────────────────────────────────────────
+
+with tab_globe3d:
+    st.subheader("Globo 3D — posición actual + traza 90 min")
+    st.caption("Vista 3D con altitudes reales. Puntos rojos = volcanes, esferas = sats.")
+
+    try:
+        import pydeck as pdk
+
+        deck_volcs = [
+            {"name": v.name, "lon": v.lon, "lat": v.lat, "elev": v.elevation_m,
+             "color": [255, 80, 80] if v.name in volc_mod.PRIORITY else [220, 80, 80]}
+            for v in volcs
+        ]
+        deck_sats = []
+        deck_tracks = []
+        for s in polar_sats_meta:
+            sat_obj = sat_objects.get(s.norad_id)
+            if sat_obj is None:
+                continue
+            lat0, lon0, alt_km = subpoint(sat_obj, now)
+            deck_sats.append({"name": s.name, "lon": lon0, "lat": lat0, "alt_m": alt_km * 1000})
+            track = ground_track(sat_obj, start=now, minutes_ahead=90, step_s=60)
+            for k in range(len(track) - 1):
+                if abs(track[k+1][1] - track[k][1]) > 180:
+                    continue
+                deck_tracks.append({
+                    "from": [track[k][1], track[k][0]],
+                    "to": [track[k+1][1], track[k+1][0]],
+                    "name": s.name,
+                })
+
+        view = pdk.ViewState(latitude=-35, longitude=-71, zoom=2.5, pitch=30, bearing=0)
+        layers = [
+            pdk.Layer(
+                "ScatterplotLayer", data=deck_volcs,
+                get_position="[lon, lat]", get_radius=20000,
+                get_fill_color="color", pickable=True,
+            ),
+            pdk.Layer(
+                "ColumnLayer", data=deck_sats,
+                get_position="[lon, lat]",
+                get_elevation="alt_m", elevation_scale=10,
+                radius=30000, get_fill_color=[80, 200, 240, 200],
+                pickable=True,
+            ),
+            pdk.Layer(
+                "LineLayer", data=deck_tracks,
+                get_source_position="from", get_target_position="to",
+                get_color=[80, 200, 240, 180], get_width=2,
+            ),
+        ]
+        st.pydeck_chart(pdk.Deck(
+            layers=layers, initial_view_state=view,
+            map_style="mapbox://styles/mapbox/dark-v10",
+            tooltip={"text": "{name}"},
+        ))
+    except ImportError:
+        st.info("`pip install pydeck` para habilitar esta vista.")
+
+
 # ── Tab 3: Timeline ─────────────────────────────────────────────────────
 
 with tab_timeline:
@@ -360,6 +423,69 @@ with tab_timeline:
                 ),
                 use_container_width=True, hide_index=True,
             )
+
+
+# ── Tab Alertas (Fase 3) ────────────────────────────────────────────────
+
+with tab_alerts:
+    st.subheader("🔔 Alertas — pasajes en próximos N minutos")
+    st.caption(
+        "Pasajes próximos sobre los volcanes filtrados. "
+        "Útil para preparar adquisición / verificar producto disponible."
+    )
+
+    from src.notifications import collect_alerts, render_text_digest, post_webhook, to_jsonl
+
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        lead_min = st.slider("Horizonte de alerta (min)", 5, 240, 60, 5)
+    with col2:
+        alert_min_elev = st.slider("Elev mínima alerta (°)", 10, 60, 20, 5)
+
+    alerts = collect_alerts(
+        sat_objects=sat_objects,
+        sat_meta=polar_sats_meta,
+        volcanoes=volcs,
+        lead_min=lead_min,
+        min_elev=float(alert_min_elev),
+        now=now,
+    )
+
+    if not alerts:
+        st.info(f"Sin pasajes en próximos {lead_min} min con elev ≥ {alert_min_elev}°.")
+    else:
+        st.success(f"**{len(alerts)} alerta(s)** — ordenadas por proximidad")
+        for a in alerts:
+            with st.container(border=True):
+                c1, c2, c3 = st.columns([3, 1, 1])
+                c1.markdown(f"**{a.sat}** ({a.sensor}) → 🌋 **{a.volcano}**")
+                c1.caption(a.product)
+                c2.metric("En", f"{a.minutes_to_rise:.0f} min")
+                c3.metric("Elev máx", f"{a.max_elev:.0f}°")
+                c1.caption(
+                    f"Inicio {a.rise_utc:%H:%M} → fin {a.culminate_utc:%H:%M} UTC · "
+                    f"Datos NRT ~{a.data_eta_utc:%H:%M UTC}"
+                )
+
+        st.markdown("---")
+        st.subheader("Digest de texto")
+        st.code(render_text_digest(alerts))
+
+        col_dl1, col_dl2, col_wh = st.columns([1, 1, 2])
+        col_dl1.download_button(
+            "⬇️ JSON Lines", to_jsonl(alerts).encode(), "alertas.jsonl", "application/jsonl",
+        )
+        col_dl2.download_button(
+            "⬇️ Texto plano", render_text_digest(alerts).encode(), "alertas.txt", "text/plain",
+        )
+        with col_wh:
+            webhook_url = st.text_input("URL webhook (Slack/Discord/Teams)", type="password")
+            if st.button("📤 Enviar a webhook") and webhook_url:
+                code, body = post_webhook(alerts, webhook_url)
+                if 200 <= code < 300:
+                    st.success(f"Enviado ({code})")
+                else:
+                    st.error(f"Falló ({code}): {body}")
 
 
 # ── Tab 4: Geoestacionarios ─────────────────────────────────────────────
