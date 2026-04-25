@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.streamlit/secrets.toml
+
+# Cache de TLEs descargados
+data/tle/
+data/tle_cache.txt
+data/tle_cache.meta
+*.tle
+*.bsp
+
+# Streamlit
+.streamlit/cache/
