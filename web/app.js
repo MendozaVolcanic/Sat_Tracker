@@ -1102,9 +1102,16 @@ async function main() {
   // Toggle pantalla-completa: oculta sidebar para que el globo ocupe todo
   $("#btn-fullscreen-toggle").onclick = () => {
     document.body.classList.toggle("globe-fullscreen");
-    // globe.gl no escucha resize de su contenedor automáticamente — forzar
+    // globe.gl escucha window resize internamente — forzar después de
+    // que la transición CSS termine
     setTimeout(() => window.dispatchEvent(new Event("resize")), 280);
   };
+
+  // Cuando el browser entra/sale de fullscreen real (F11), también disparar
+  // resize para que el canvas WebGL del globo se ajuste al nuevo viewport.
+  document.addEventListener("fullscreenchange", () => {
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
+  });
 
   // En móvil, paneles 3+ colapsables (los 2 primeros — Volcán y Próximos
   // pasajes — siempre abiertos, son lo más usado).
