@@ -42,6 +42,7 @@
       <div class="legend-row"><span class="line"></span> Traza terrestre próximos 90 min</div>
       <button id="btn-chile">Centrar Chile</button>
       <button id="btn-world">Vista global</button>
+      <button id="btn-geos" title="Zoom-out para ver geoestacionarios (~36k km)">Ver geos</button>
       <label><input type="checkbox" id="chk-tracks" checked /> Mostrar trazas</label>
       <label><input type="checkbox" id="chk-labels" checked /> Etiquetas sat</label>
       <label><input type="checkbox" id="chk-footprints" /> Footprint (swath)</label>
@@ -80,6 +81,15 @@
       <h2>Satélites en este momento</h2>
       <table id="now-table">
         <thead><tr><th>Sat</th><th>Lat</th><th>Lon</th><th>Alt km</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Productos OVDAS — qué imagen viene de qué satélite</h2>
+      <p class="muted small">Nombres como los usás en operaciones → satélite del catálogo.</p>
+      <table id="ovdas-products">
+        <thead><tr><th>Producto</th><th>Resol.</th><th>Sat(s)</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>

@@ -164,6 +164,19 @@ th {
 }
 tbody tr:hover { background: var(--table-row); }
 
+.sat-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  margin: 1px 0;
+  font-weight: 500;
+  background: rgba(255,255,255,0.03);
+  transition: background 0.15s;
+}
+.sat-chip:hover { background: rgba(255,255,255,0.08); }
+
 .tag-priority {
   display: inline-block;
   background: var(--accent);

@@ -31,6 +31,35 @@ const SAT_COLORS = {
 };
 const DEFAULT_COLOR = "#4cc9f0";
 
+// Mapeo nombres operacionales OVDAS → satélites del catálogo.
+// Útil para que el guardián identifique de qué sat viene la imagen que mira.
+const OVDAS_PRODUCTS = [
+  { product: "VIIRS 375 m (I-band fires)", resolution: "375 m",
+    sats: ["Suomi-NPP", "NOAA-20", "NOAA-21"] },
+  { product: "VIIRS 750 m (M-band)",       resolution: "750 m",
+    sats: ["Suomi-NPP", "NOAA-20", "NOAA-21"] },
+  { product: "VIIRS DNB (Day/Night Band)", resolution: "750 m",
+    sats: ["Suomi-NPP", "NOAA-20", "NOAA-21"] },
+  { product: "MODIS hot spots / Ash RGB",  resolution: "1 km / 250 m",
+    sats: ["Terra", "Aqua"] },
+  { product: "TROPOMI SO₂",                resolution: "5.5 × 3.5 km",
+    sats: ["Sentinel-5P"] },
+  { product: "Landsat TIRS térmico",       resolution: "100 m",
+    sats: ["Landsat 8", "Landsat 9"] },
+  { product: "Landsat OLI visible",        resolution: "30 m",
+    sats: ["Landsat 8", "Landsat 9"] },
+  { product: "Sentinel-2 MSI (visible)",   resolution: "10/20/60 m",
+    sats: ["Sentinel-2A", "Sentinel-2B"] },
+  { product: "Sentinel-3 SLSTR FRP",       resolution: "1 km",
+    sats: ["Sentinel-3A", "Sentinel-3B"] },
+  { product: "IASI SO₂ column",            resolution: "12 km",
+    sats: ["MetOp-B", "MetOp-C"] },
+  { product: "GOES ABI Ash RGB / FDCF",    resolution: "2 km",
+    sats: ["GOES-19"] },
+  { product: "Himawari AHI Ash RGB",       resolution: "2 km",
+    sats: ["Himawari-9"] },
+];
+
 let volcanoes = [];
 let satMeta = [];
 let satRecords = [];
@@ -205,25 +234,83 @@ function tickPositions(now) {
   }
 }
 
-// Footprint = circulo en superficie de radio = swath/2 (km) alrededor del subpunto.
-// Convertimos a un polígono GeoJSON-like para globe.gl polygons layer.
-function makeFootprintPolygon(lat, lon, radiusKm, segments = 36) {
-  const R = 6371;
-  const ang = radiusKm / R;            // radio angular (rad)
-  const φ1 = lat * Math.PI / 180;
-  const λ1 = lon * Math.PI / 180;
-  const ring = [];
-  for (let i = 0; i <= segments; i++) {
-    const θ = (i / segments) * 2 * Math.PI;
-    const φ2 = Math.asin(Math.sin(φ1) * Math.cos(ang) +
-                          Math.cos(φ1) * Math.sin(ang) * Math.cos(θ));
-    const λ2 = λ1 + Math.atan2(
-      Math.sin(θ) * Math.sin(ang) * Math.cos(φ1),
-      Math.cos(ang) - Math.sin(φ1) * Math.sin(φ2),
-    );
-    ring.push([((λ2 * 180 / Math.PI + 540) % 360) - 180, φ2 * 180 / Math.PI]);
+// Footprint real = franja CROSS-TRACK siguiendo la traza orbital.
+// Para cada par consecutivo de puntos en la traza, calculamos el bearing
+// (rumbo) y desplazamos lateralmente ±swath/2 perpendicular al vector de
+// vuelo. Eso da una banda que es lo que el sensor barre realmente.
+
+const FOOTPRINT_AHEAD_MIN = 30;          // mostrar swath próximos 30 min
+const FOOTPRINT_STEP_S = 60;
+const R_EARTH_KM = 6371;
+
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) -
+            Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+// Mover un punto (lat,lon) una distancia 'distKm' en bearing 'brngDeg'.
+function offsetPoint(lat, lon, distKm, brngDeg) {
+  const δ = distKm / R_EARTH_KM;
+  const θ = brngDeg * Math.PI / 180;
+  const φ1 = lat * Math.PI / 180, λ1 = lon * Math.PI / 180;
+  const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) +
+                        Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+  const λ2 = λ1 + Math.atan2(
+    Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+    Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2),
+  );
+  return [φ2 * 180 / Math.PI, ((λ2 * 180 / Math.PI + 540) % 360) - 180];
+}
+
+function makeSwathStrip(satrec, startTime, ahedMin, swathKm) {
+  // Genera puntos de la traza, computa bearing local, y desplaza ±swath/2
+  // perpendicular para obtener bordes izq/der de la banda.
+  const half = swathKm / 2;
+  const n = Math.floor(ahedMin * 60 / FOOTPRINT_STEP_S);
+  const track = [];
+  for (let i = 0; i <= n; i++) {
+    const t = new Date(startTime.getTime() + i * FOOTPRINT_STEP_S * 1000);
+    const p = propagate(satrec, t);
+    if (p) track.push(p);
   }
-  return ring;
+  if (track.length < 2) return [];
+
+  // Por cada punto, bearing al siguiente; bordes a 90° y -90° del bearing.
+  const left = [], right = [];
+  for (let i = 0; i < track.length; i++) {
+    const cur = track[i];
+    const next = track[Math.min(i + 1, track.length - 1)];
+    const prev = track[Math.max(i - 1, 0)];
+    const ref = i < track.length - 1 ? next : prev;
+    const brg = (i < track.length - 1)
+      ? bearingDeg(cur.lat, cur.lon, ref.lat, ref.lon)
+      : bearingDeg(prev.lat, prev.lon, cur.lat, cur.lon);
+    left.push(offsetPoint(cur.lat, cur.lon, half, (brg - 90 + 360) % 360));
+    right.push(offsetPoint(cur.lat, cur.lon, half, (brg + 90) % 360));
+  }
+  // Polígono = bordes izquierdos + bordes derechos invertidos. Pero hay que
+  // partir cuando cruza antimeridiano para evitar polígonos rotos.
+  // Estrategia simple: emitir múltiples segmentos rectos como sub-polígonos.
+  const segments = [];
+  let segL = [], segR = [];
+  for (let i = 0; i < left.length; i++) {
+    if (i > 0) {
+      const dl = Math.abs(left[i][1] - left[i-1][1]);
+      const dr = Math.abs(right[i][1] - right[i-1][1]);
+      if (dl > 180 || dr > 180) {
+        if (segL.length > 1) segments.push({ left: segL, right: segR });
+        segL = []; segR = [];
+      }
+    }
+    segL.push(left[i]);
+    segR.push(right[i]);
+  }
+  if (segL.length > 1) segments.push({ left: segL, right: segR });
+  return segments;
 }
 
 function rebuildFootprints() {
@@ -231,21 +318,30 @@ function rebuildFootprints() {
     globe.polygonsData([]);
     return;
   }
+  const now = new Date();
   const polys = [];
-  for (const s of satState) {
-    if (s.kind === "geo" || !s.swath_km) continue;
-    const ring = makeFootprintPolygon(s.lat, s.lon, s.swath_km / 2);
-    polys.push({
-      geometry: { type: "Polygon", coordinates: [ring] },
-      color: s.color,
-      name: s.name,
-    });
+  for (const r of satRecords) {
+    if (r.meta.kind === "geo" || !r.meta.swath_km) continue;
+    const segs = makeSwathStrip(r.satrec, now, FOOTPRINT_AHEAD_MIN, r.meta.swath_km);
+    const color = SAT_COLORS[r.name] || DEFAULT_COLOR;
+    for (const seg of segs) {
+      // ring = left forward + right backward
+      const ring = [
+        ...seg.left.map(p => [p[1], p[0]]),
+        ...seg.right.slice().reverse().map(p => [p[1], p[0]]),
+      ];
+      ring.push(ring[0]);  // cerrar
+      polys.push({
+        geometry: { type: "Polygon", coordinates: [ring] },
+        color, name: r.meta.name,
+      });
+    }
   }
   globe
     .polygonsData(polys)
     .polygonGeoJsonGeometry("geometry")
     .polygonAltitude(0.003)
-    .polygonCapColor(d => d.color + "26")     // alpha bajito
+    .polygonCapColor(d => d.color + "30")
     .polygonSideColor(d => d.color + "10")
     .polygonStrokeColor(d => d.color)
     .polygonsTransitionDuration(0);
@@ -318,8 +414,10 @@ function setupSatLayers() {
     .labelsData(satState)
     .labelLat("lat").labelLng("lng").labelAltitude("labelAlt")
     .labelText(d => showLabels ? d.text : "")
-    .labelSize(0.45).labelColor("color")
-    .labelDotRadius(0).labelResolution(2);
+    .labelSize(d => d.kind === "geo" ? 1.3 : 0.85)
+    .labelColor("color")
+    .labelDotRadius(0).labelResolution(3)
+    .labelIncludeDot(false);
 
   rebuildTracks();
 }
@@ -412,10 +510,10 @@ function updatePassesTable() {
   }
 }
 
-function flyToSat(name) {
-  const s = satState.find(x => x.name === name);
-  if (!s) return;
-  globe.pointOfView({ lat: s.lat, lng: s.lon, altitude: 1.2 }, 1000);
+function flyToSatPos(lat, lon, isGeo) {
+  // Geos están a ~36k km — necesitan zoom-out para verse bien.
+  const altitude = isGeo ? 4.5 : 1.0;
+  globe.pointOfView({ lat, lng: lon, altitude }, 1200);
 }
 
 function updateNowTable() {
@@ -431,7 +529,10 @@ function updateNowTable() {
     const tr = el("tr");
     tr.style.cursor = "pointer";
     tr.title = `Click: ir a ${r.name}`;
-    tr.onclick = () => flyToSat(r.name);
+    const meta = satMeta.find(m => m.name === r.name);
+    const isGeo = meta?.kind === "geo";
+    const lat = r.pos.lat, lon = r.pos.lon;
+    tr.onclick = () => flyToSatPos(lat, lon, isGeo);
     const c1 = el("td", {}, [el("b", { text: r.name })]);
     if (overChile) {
       const dot = el("span", { text: " ●" });
@@ -443,6 +544,40 @@ function updateNowTable() {
     tr.appendChild(el("td", { text: r.pos.lat.toFixed(1) }));
     tr.appendChild(el("td", { text: r.pos.lon.toFixed(1) }));
     tr.appendChild(el("td", { text: r.pos.alt.toFixed(0) }));
+    tbody.appendChild(tr);
+  }
+}
+
+function populateOvdasProducts() {
+  const tbody = document.querySelector("#ovdas-products tbody");
+  if (!tbody) return;
+  clear(tbody);
+  for (const p of OVDAS_PRODUCTS) {
+    const tr = el("tr");
+    tr.appendChild(el("td", {}, [el("b", { text: p.product })]));
+    tr.appendChild(el("td", { class: "muted small", text: p.resolution }));
+    const satsCell = el("td");
+    p.sats.forEach((satName, i) => {
+      const meta = satMeta.find(m => m.name === satName);
+      const color = meta && meta.kind !== "geo"
+        ? (SAT_COLORS[satName.toUpperCase().replace("-", "-")] || DEFAULT_COLOR)
+        : (meta?.kind === "geo" ? GEO_COLOR : DEFAULT_COLOR);
+      // satellite.js TLE names use spaces sometimes — try color match against record.name
+      const rec = satRecords.find(r => r.meta.name === satName);
+      const c = rec ? (SAT_COLORS[rec.name] || (meta?.kind === "geo" ? GEO_COLOR : DEFAULT_COLOR)) : color;
+      const chip = el("span", { class: "sat-chip", text: satName });
+      chip.style.borderColor = c;
+      chip.style.color = c;
+      chip.style.cursor = "pointer";
+      chip.title = `Click: ir a ${satName} en el globo`;
+      chip.onclick = () => {
+        const s = satState.find(x => x.name === satName);
+        if (s) flyToSatPos(s.lat, s.lon, s.kind === "geo");
+      };
+      satsCell.appendChild(chip);
+      if (i < p.sats.length - 1) satsCell.appendChild(document.createTextNode(" "));
+    });
+    tr.appendChild(satsCell);
     tbody.appendChild(tr);
   }
 }
@@ -469,6 +604,7 @@ function tickHeader() {
 async function main() {
   await loadData();
   populateVolcanoSelect();
+  populateOvdasProducts();
   populateGeoTable();
   initGlobe();
   setupSatLayers();
@@ -489,6 +625,8 @@ async function main() {
     globe.pointOfView({ lat: -35, lng: -71, altitude: 1.5 }, 800);
   $("#btn-world").onclick = () =>
     globe.pointOfView({ lat: 0, lng: -70, altitude: 2.5 }, 800);
+  $("#btn-geos").onclick = () =>
+    globe.pointOfView({ lat: 0, lng: -90, altitude: 8 }, 1500);
   $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildTracks(); };
   $("#chk-labels").onchange = (e) => {
     showLabels = e.target.checked;
