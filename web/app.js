@@ -19,61 +19,121 @@ const GEO_ICON_SCALE = 5.5;             // satélite-icono grande para geos
 const POLAR_ICON_SCALE = 0.85;          // satélite-icono para sat polar en posición real
 const GHOST_ICON_SCALE = 1.0;           // ghost (preview) un poco más grande para distinguir
 
-// Devuelve un Group THREE con forma de satélite: cuerpo + paneles + antena.
-// Color = color del sat. scale ajusta tamaño general.
+// Construye un ícono 3D de satélite con look moderno: cuerpo hexagonal
+// metálico tipo bus, dos arrays de paneles solares segmentados (estilo ISS),
+// antena dorada y disco parabólico en la punta.
 function makeSatelliteIcon(color, scale = 1) {
   const group = new THREE.Group();
   const colorObj = new THREE.Color(color);
 
-  // Cuerpo (caja amarillenta tipo bus)
+  // ── Cuerpo hexagonal metálico ──
   const body = new THREE.Mesh(
-    new THREE.BoxGeometry(scale * 0.9, scale * 0.7, scale * 1.3),
-    new THREE.MeshBasicMaterial({ color: 0xeeeecc }),
+    new THREE.CylinderGeometry(scale * 0.45, scale * 0.45, scale * 1.2, 6),
+    new THREE.MeshBasicMaterial({ color: 0xd4d4d8 }),
   );
+  body.rotation.x = Math.PI / 2;   // orientado a lo largo del eje Z
   group.add(body);
 
-  // Paneles solares (rectángulos azul oscuro a cada lado)
-  const panelMat = new THREE.MeshBasicMaterial({
-    color: 0x1f3a8a, side: THREE.DoubleSide,
-  });
-  const panelGeo = new THREE.BoxGeometry(scale * 2.4, scale * 0.04, scale * 0.9);
-  const left = new THREE.Mesh(panelGeo, panelMat);
-  left.position.x = -scale * 1.7;
-  group.add(left);
-  const right = new THREE.Mesh(panelGeo, panelMat);
-  right.position.x = scale * 1.7;
-  group.add(right);
+  // Borde decorativo (anillos al frente y atrás del cuerpo)
+  const ringMat = new THREE.LineBasicMaterial({ color: 0x666666 });
+  for (const z of [-scale * 0.6, scale * 0.6]) {
+    const ringGeo = new THREE.BufferGeometry();
+    const ringPts = [];
+    for (let i = 0; i <= 32; i++) {
+      const a = (i / 32) * Math.PI * 2;
+      ringPts.push(new THREE.Vector3(
+        Math.cos(a) * scale * 0.46, Math.sin(a) * scale * 0.46, z,
+      ));
+    }
+    ringGeo.setFromPoints(ringPts);
+    group.add(new THREE.Line(ringGeo, ringMat));
+  }
 
-  // Líneas de los paneles (gridlines)
-  const lineMat = new THREE.LineBasicMaterial({ color: 0x4cc9f0, opacity: 0.4, transparent: true });
+  // ── Paneles solares segmentados estilo ISS ──
+  // 2 arrays de 3 segmentos cada uno por lado (6 segmentos por lado).
+  const panelDarkBlue = new THREE.MeshBasicMaterial({
+    color: 0x0a1f5e, side: THREE.DoubleSide,
+  });
+  const panelGridColor = new THREE.LineBasicMaterial({
+    color: 0x2563eb, transparent: true, opacity: 0.7,
+  });
+
+  const segW = scale * 0.85;            // ancho de cada segmento
+  const segH = scale * 0.05;
+  const segD = scale * 0.65;            // alto del panel
+  const numSegs = 3;
+  const startX = scale * 0.55;          // distancia al cuerpo
+
   for (const side of [-1, 1]) {
-    for (let i = -1; i <= 1; i += 0.5) {
-      if (i === 0) continue;
-      const pts = [
-        new THREE.Vector3(side * scale * (0.5 + Math.abs(i) * 1.2), scale * 0.05, scale * i * 0.4),
-        new THREE.Vector3(side * scale * (0.5 + Math.abs(i) * 1.2), -scale * 0.05, scale * i * 0.4),
-      ];
-      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+    for (let i = 0; i < numSegs; i++) {
+      // Posición del centro del segmento
+      const cx = side * (startX + segW * (i + 0.5));
+      // Cuerpo del segmento
+      const seg = new THREE.Mesh(
+        new THREE.BoxGeometry(segW * 0.95, segH, segD),
+        panelDarkBlue,
+      );
+      seg.position.set(cx, 0, 0);
+      group.add(seg);
+      // Marco metálico alrededor (líneas)
+      const frameGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(cx - segW * 0.475, segH * 0.5, segD * 0.5),
+        new THREE.Vector3(cx + segW * 0.475, segH * 0.5, segD * 0.5),
+        new THREE.Vector3(cx + segW * 0.475, segH * 0.5, -segD * 0.5),
+        new THREE.Vector3(cx - segW * 0.475, segH * 0.5, -segD * 0.5),
+        new THREE.Vector3(cx - segW * 0.475, segH * 0.5, segD * 0.5),
+      ]);
+      group.add(new THREE.Line(frameGeo, panelGridColor));
+      // Líneas internas tipo grilla de celdas FV (4 columnas)
+      for (let k = 1; k < 4; k++) {
+        const fx = cx - segW * 0.475 + (segW * 0.95) * (k / 4);
+        const colGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(fx, segH * 0.5, segD * 0.5),
+          new THREE.Vector3(fx, segH * 0.5, -segD * 0.5),
+        ]);
+        group.add(new THREE.Line(colGeo, panelGridColor));
+      }
     }
   }
 
-  // Antena (cilindro saliendo de un extremo, en el color del sat)
+  // ── Mástil de paneles (cilindro fino conectando cuerpo con paneles) ──
+  for (const side of [-1, 1]) {
+    const mast = new THREE.Mesh(
+      new THREE.CylinderGeometry(scale * 0.04, scale * 0.04, scale * 0.5, 6),
+      new THREE.MeshBasicMaterial({ color: 0x888888 }),
+    );
+    mast.position.x = side * scale * 0.5;
+    mast.rotation.z = Math.PI / 2;
+    group.add(mast);
+  }
+
+  // ── Antena delantera dorada con plato parabólico ──
+  const antMat = new THREE.MeshBasicMaterial({ color: colorObj });
   const ant = new THREE.Mesh(
-    new THREE.CylinderGeometry(scale * 0.05, scale * 0.05, scale * 1.0, 6),
-    new THREE.MeshBasicMaterial({ color: colorObj }),
+    new THREE.CylinderGeometry(scale * 0.04, scale * 0.04, scale * 0.7, 6),
+    antMat,
   );
   ant.position.z = scale * 0.95;
   ant.rotation.x = Math.PI / 2;
   group.add(ant);
 
-  // Disco de antena en la punta
+  // Plato (semiesfera invertida)
   const dish = new THREE.Mesh(
-    new THREE.SphereGeometry(scale * 0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: colorObj }),
+    new THREE.SphereGeometry(scale * 0.22, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    antMat,
   );
-  dish.position.z = scale * 1.45;
+  dish.position.z = scale * 1.32;
   dish.rotation.x = -Math.PI / 2;
   group.add(dish);
+
+  // Antena trasera más pequeña (whip)
+  const whip = new THREE.Mesh(
+    new THREE.CylinderGeometry(scale * 0.02, scale * 0.02, scale * 0.4, 4),
+    new THREE.MeshBasicMaterial({ color: 0x999999 }),
+  );
+  whip.position.z = -scale * 0.85;
+  whip.rotation.x = Math.PI / 2;
+  group.add(whip);
 
   return group;
 }
@@ -682,6 +742,7 @@ function setupSatLayers() {
       div.textContent = d.text;
       div.style.color = d.color;
       div.style.borderColor = d.color;
+      d._labelEl = div;          // referencia para toggling de oclusión
       return div;
     });
 
@@ -689,13 +750,39 @@ function setupSatLayers() {
   ensureGhostMeshes();
 }
 
+// Atenúa labels de sats que están detrás del globo (lado opuesto a cámara).
+// Test: dot product entre posición del sat y posición de la cámara, ambos
+// medidos desde el centro del globo. Positivo = mismo hemisferio = visible.
+const _labelTmpVec = new THREE.Vector3();
+function updateLabelOcclusion() {
+  if (!globe || !showLabels) return;
+  const cam = globe.camera();
+  if (!cam) return;
+  cam.getWorldPosition(_labelTmpVec);
+  const camX = _labelTmpVec.x, camY = _labelTmpVec.y, camZ = _labelTmpVec.z;
+  for (const s of satState) {
+    if (!s._labelEl) continue;
+    // Geos: nunca ocluidos (a 36k km son siempre visibles desde fuera del globo)
+    if (s.kind === "geo") {
+      s._labelEl.style.opacity = "1";
+      continue;
+    }
+    const c = globe.getCoords(s.lat, s.lon, s.alt / 6371);
+    const dot = camX * c.x + camY * c.y + camZ * c.z;
+    s._labelEl.style.opacity = dot > 0 ? "1" : "0.18";
+    s._labelEl.style.filter = dot > 0 ? "" : "saturate(0.4)";
+  }
+}
+
 let _footprintTickCounter = 0;
+let _occlusionTickCounter = 0;
 function animationLoop() {
   tickPositions();
   globe.customLayerData(satState);
   globe.htmlElementsData(satState);
   updateGhostPositions(getNow());
-  // Footprints más pesados — refresco cada ~12 frames (~5 Hz).
+  // Oclusión de labels: refrescar cada ~6 frames (~10 Hz, suficiente)
+  if (++_occlusionTickCounter % 6 === 0) updateLabelOcclusion();
   if (showFootprints && (++_footprintTickCounter % 12 === 0)) {
     rebuildFootprints();
   }
@@ -989,7 +1076,8 @@ async function main() {
   $("#btn-geos").onclick = () =>
     globe.pointOfView({ lat: 0, lng: -90, altitude: 8 }, 1500);
 
-  // En móvil, hacer paneles 4+ colapsables (ahorra scroll).
+  // En móvil, paneles 3+ colapsables (los 2 primeros — Volcán y Próximos
+  // pasajes — siempre abiertos, son lo más usado).
   document.querySelectorAll(".panel h2").forEach(h => {
     h.addEventListener("click", () => {
       if (window.innerWidth <= 600) {

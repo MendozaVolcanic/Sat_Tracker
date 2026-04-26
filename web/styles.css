@@ -343,41 +343,117 @@ body.hide-sat-labels .sat-html-label { display: none; }
 
 /* ── Móvil compacto extremo ───────────────────────────────────────────── */
 @media (max-width: 600px) {
-  main { grid-template-rows: 45vh 1fr; }
+  main {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 56px);
+  }
+  #globe-section {
+    flex: 0 0 38vh;
+    min-height: 38vh;
+  }
+  #sidebar {
+    flex: 1 1 auto;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
   header {
     flex-wrap: wrap;
     height: auto;
     padding: 6px 10px;
-    gap: 6px;
+    gap: 4px;
   }
-  .header-meta { width: 100%; justify-content: space-between; gap: 8px; }
+  .header-meta {
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 10px;
+  }
+  .header-meta .lbl { font-size: 8px; }
   .title { gap: 8px; }
   .logo { font-size: 20px; }
   header h1 { font-size: 13px; }
-  /* Colapsa paneles secundarios — sólo el primero abierto */
-  .panel:nth-child(n+4) > *:not(h2) { display: none; }
-  .panel:nth-child(n+4) h2 {
+  .sub { display: none; }
+
+  /* Paneles: el primero (Volcán) y el segundo (Próximos pasajes) siempre
+     abiertos. Resto colapsados, tocar para abrir. */
+  .panel:nth-child(n+3) > *:not(h2) { display: none; }
+  .panel:nth-child(n+3) h2 {
     cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
-  .panel:nth-child(n+4) h2::after {
-    content: " ▸ tocar para abrir";
-    font-size: 9px; color: var(--fg-muted);
-    text-transform: none; letter-spacing: 0;
+  .panel:nth-child(n+3) h2::after {
+    content: "▸";
+    font-size: 14px; color: var(--fg-muted);
   }
-  .panel:nth-child(n+4).expanded > * { display: revert; }
-  .panel:nth-child(n+4).expanded h2::after { content: " ▾"; }
+  .panel:nth-child(n+3).expanded > * { display: revert; }
+  .panel:nth-child(n+3).expanded h2::after { content: "▾"; }
 
+  /* Tablas más legibles en pantallita */
+  table { font-size: 13px; }
+  th { font-size: 10px; }
+  th, td { padding: 6px 5px; }
+
+  /* Tipografía paneles más generosa */
+  .panel { padding: 10px; margin-bottom: 8px; border-radius: 10px; }
+  .panel h2 { font-size: 11px; margin-bottom: 8px; }
+
+  /* Selector de volcán bien grande para tap */
+  select { padding: 10px; font-size: 14px; min-height: 42px; }
+
+  /* Leyenda: barra horizontal abajo con scroll horizontal si no entra */
   .legend {
-    bottom: 5px; left: 5px; right: 5px; max-width: none;
-    flex-direction: row; flex-wrap: wrap; gap: 6px;
+    bottom: 4px; left: 4px; right: 4px; max-width: none;
+    flex-direction: row; flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 4px;
     font-size: 10px;
+    padding: 6px 8px;
   }
-  .legend button { padding: 3px 8px; font-size: 10px; }
+  .legend-row { white-space: nowrap; flex-shrink: 0; }
+  .legend button {
+    padding: 4px 8px; font-size: 10px;
+    flex-shrink: 0; min-height: 28px;
+  }
+  .legend label {
+    padding: 4px 6px; flex-shrink: 0;
+    min-height: 28px;
+  }
 
-  /* Banner preview más pequeño en móvil */
-  #preview-banner {
-    top: auto; bottom: 12px;
-    font-size: 11px; padding: 6px 12px;
-    max-width: 95vw;
+  /* Botón Preview más fácil de tappear */
+  .preview-btn {
+    padding: 4px 8px; font-size: 12px;
+    min-width: 28px; min-height: 24px;
   }
+
+  /* Banner preview pegado abajo en móvil */
+  #preview-banner {
+    top: auto; bottom: 8px;
+    font-size: 11px; padding: 6px 10px;
+    max-width: 95vw; left: 50%;
+  }
+
+  /* Disclaimer compacto */
+  .disclaimer { font-size: 10px; padding: 6px 8px; }
+
+  /* Sat labels HTML: más chiquitos en mobile */
+  .sat-html-label { font-size: 9px; padding: 1px 4px; }
+  .sat-html-label.geo { font-size: 11px; padding: 2px 6px; }
+}
+
+/* ── Móvil chico (iPhone SE / pantallas <380) ────────────────────────── */
+@media (max-width: 380px) {
+  #globe-section { flex: 0 0 32vh; min-height: 32vh; }
+  header h1 { font-size: 12px; }
+  .legend {
+    /* Aún más compacto: solo iconos críticos */
+    font-size: 9px;
+    gap: 3px;
+  }
+  table { font-size: 12px; }
 }
