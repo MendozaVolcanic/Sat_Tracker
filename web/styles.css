@@ -178,6 +178,44 @@ tbody tr:hover { background: var(--table-row); }
 .elev-mid  { color: #f3c75c; }
 .elev-low  { color: #f37e5c; }
 
+.warn-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: #f3c75c;
+  margin-left: 2px;
+  cursor: help;
+}
+
+.disclaimer {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(243, 199, 92, 0.08);
+  border-left: 3px solid #f3c75c;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #d8c79a;
+}
+.disclaimer strong { color: #f3c75c; }
+.disclaimer a { color: var(--accent-2); }
+
+.disclaimer-tight {
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+.disclaimer-inline {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(243, 199, 92, 0.08);
+  border-left: 3px solid #f3c75c;
+  border-radius: 4px;
+  color: #d8c79a;
+  line-height: 1.5;
+}
+.disclaimer-inline strong { color: #f3c75c; }
+
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; grid-template-rows: 60vh 1fr; }
   #sidebar { border-left: none; border-top: 1px solid var(--border); }
