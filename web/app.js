@@ -10,7 +10,7 @@ const REFRESH_MS_TRACKS = 30000;        // recalcula trazas 90 min cada 30 s
 const REFRESH_MS_NOW_TABLE = 5000;       // tabla "sats ahora" cada 5 s
 const REFRESH_MS_PASSES_TABLE = 60000;   // tabla pasajes 24 h cada 60 s
 const TRACK_AHEAD_MIN = 90;
-const TRACK_STEP_S = 60;
+const TRACK_STEP_S = 30;        // antes 60 — muestreo más fino para trazas suaves cerca de polos
 const PASS_WINDOW_H = 24;
 const MIN_ELEV_DEG = 20;
 
@@ -669,6 +669,24 @@ function updateGhostPositions(now) {
   }
 }
 
+// Interpola el cruce del antimeridiano para que los segmentos terminen
+// EXACTAMENTE en ±180° (no en el último punto antes de saltar). Devuelve
+// los dos puntos de borde con misma latitud y altitud.
+function antimeridianBreakpoint(prev, curr) {
+  const [lat0, lon0, alt0] = prev, [lat1, lon1, alt1] = curr;
+  // Determinar dirección y desempaquetar longitud
+  const goingEast = lon0 > 0 && lon1 < 0;
+  const lon1u = goingEast ? lon1 + 360 : lon1 - 360;
+  const targetLon = goingEast ? 180 : -180;
+  const t = (targetLon - lon0) / (lon1u - lon0);
+  const lat = lat0 + t * (lat1 - lat0);
+  const alt = alt0 + t * (alt1 - alt0);
+  return {
+    end:   [lat, goingEast ?  180 : -180, alt],
+    start: [lat, goingEast ? -180 :  180, alt],
+  };
+}
+
 function rebuildTracks() {
   const now = new Date();
   const trackPaths = [];
@@ -677,7 +695,7 @@ function rebuildTracks() {
     return;
   }
   for (const r of satRecords) {
-    if (r.meta.kind === "geo") continue;  // geoestacionarios no tienen "traza" útil
+    if (r.meta.kind === "geo") continue;
     const color = SAT_COLORS[r.name] || DEFAULT_COLOR;
     const pts = [];
     for (let i = 0; i <= TRACK_AHEAD_MIN * 60 / TRACK_STEP_S; i++) {
@@ -688,8 +706,13 @@ function rebuildTracks() {
     let seg = [];
     for (let i = 0; i < pts.length; i++) {
       if (i > 0 && Math.abs(pts[i][1] - pts[i - 1][1]) > 180) {
+        // Cruce de antimeridiano — extender línea hasta el borde, partir,
+        // y arrancar el siguiente segmento desde el borde opuesto. Asi se
+        // ve continua hasta el "límite del mapa" en vez de un gap visible.
+        const brk = antimeridianBreakpoint(pts[i - 1], pts[i]);
+        seg.push(brk.end);
         if (seg.length > 1) trackPaths.push({ coords: seg, color });
-        seg = [];
+        seg = [brk.start];
       }
       seg.push(pts[i]);
     }
@@ -702,7 +725,7 @@ function rebuildTracks() {
     .pathPointLng(p => p[1])
     .pathPointAlt(p => p[2] / 6371)
     .pathColor(d => [d.color, d.color])
-    .pathStroke(1.2)
+    .pathStroke(1.6)
     .pathTransitionDuration(0);
 }
 
