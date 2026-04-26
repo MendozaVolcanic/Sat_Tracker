@@ -185,6 +185,8 @@ tbody tr:hover { background: var(--table-row); }
   padding: 3px 8px;
 }
 
+body.hide-sat-labels .sat-html-label { display: none; }
+
 .sat-chip {
   display: inline-block;
   font-size: 11px;

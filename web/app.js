@@ -553,10 +553,6 @@ function setupSatLayers() {
       div.style.color = d.color;
       div.style.borderColor = d.color;
       return div;
-    })
-    .htmlElementVisibilityModifier((elem, hide) => {
-      // Mostrar siempre, sin importar si está en cara opuesta del globo.
-      elem.style.display = (hide || !showLabels) ? "none" : "block";
     });
 
   rebuildTracks();
@@ -812,21 +808,25 @@ function cancelPreview() {
 }
 
 async function main() {
+  // Reloj primero — siempre debe andar aunque algo abajo falle.
+  tickHeader();
+  setInterval(tickHeader, 1000);
+
   await loadData();
   populateVolcanoSelect();
   populateOvdasProducts();
   populateGeoTable();
   initGlobe();
-  setupSatLayers();
-  selectedVolcano = volcanoes.find(v => v.name === $("#volcano-select").value);
-  onVolcanoChange();
-  updateNowTable();
 
-  tickHeader();
-  setInterval(tickHeader, 1000);
-  setInterval(updateNowTable, REFRESH_MS_NOW_TABLE);
-  setInterval(rebuildTracks, REFRESH_MS_TRACKS);
-  setInterval(updatePassesTable, REFRESH_MS_PASSES_TABLE);
+  // Cada paso protegido — un fallo no debe romper el resto del dashboard.
+  try { setupSatLayers(); } catch (e) { console.error("setupSatLayers:", e); }
+  selectedVolcano = volcanoes.find(v => v.name === $("#volcano-select").value);
+  try { onVolcanoChange(); } catch (e) { console.error("onVolcanoChange:", e); }
+  try { updateNowTable(); } catch (e) { console.error("updateNowTable:", e); }
+
+  setInterval(() => { try { updateNowTable(); } catch(e){console.error(e);} }, REFRESH_MS_NOW_TABLE);
+  setInterval(() => { try { rebuildTracks(); } catch(e){console.error(e);} }, REFRESH_MS_TRACKS);
+  setInterval(() => { try { updatePassesTable(); } catch(e){console.error(e);} }, REFRESH_MS_PASSES_TABLE);
 
   // Movimiento continuo: 60 fps.
   requestAnimationFrame(animationLoop);
@@ -849,9 +849,7 @@ async function main() {
   $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildTracks(); };
   $("#chk-labels").onchange = (e) => {
     showLabels = e.target.checked;
-    document.querySelectorAll(".sat-html-label").forEach(el => {
-      el.style.display = showLabels ? "block" : "none";
-    });
+    document.body.classList.toggle("hide-sat-labels", !showLabels);
   };
   $("#chk-footprints").onchange = (e) => {
     showFootprints = e.target.checked;
