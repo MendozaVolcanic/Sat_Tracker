@@ -431,8 +431,13 @@ function tickPositions(_unused) {
     s.lon = pos.lon;
     s.lng = pos.lon;
     s.alt = pos.alt;
-    // Geos están a 35786 km — labelAlt en unidades de radio terrestre.
-    s.labelAlt = s.kind === "geo" ? 0.4 : pos.alt / 6371 + 0.05;
+    // labelAlt: misma altitud que el icono 3D para que label y sat
+    // coincidan exactamente cuando se proyectan a pantalla. Antes usaba
+    // un offset (+0.05) que creaba desfase visible cuando la cámara estaba
+    // cerca del globo. Para geos, la altitud real (5.6 globe radii) es
+    // tan grande que el icono se renderiza fuera del frustum visible —
+    // dejamos label en altitud baja (0.4) cerca del globo.
+    s.labelAlt = s.kind === "geo" ? 0.4 : pos.alt / 6371;
   }
 }
 
@@ -801,10 +806,13 @@ let _footprintTickCounter = 0;
 let _occlusionTickCounter = 0;
 function animationLoop() {
   tickPositions();
+  // Pasar el array como referencia nueva (.slice()) fuerza a globe.gl
+  // a re-leer los accesors htmlLat/htmlLng en cada render. Sin esto el
+  // library cachea las posiciones por referencia y los labels se quedan
+  // estancados respecto a los iconos 3D.
   globe.customLayerData(satState);
-  globe.htmlElementsData(satState);
+  globe.htmlElementsData(satState.slice());
   updateGhostPositions(getNow());
-  // Oclusión de labels: refrescar cada ~6 frames (~10 Hz, suficiente)
   if (++_occlusionTickCounter % 6 === 0) updateLabelOcclusion();
   if (showFootprints && (++_footprintTickCounter % 12 === 0)) {
     rebuildFootprints();
