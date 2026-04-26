@@ -347,7 +347,6 @@ function buildSatState() {
     name: r.meta.name,
     kind: r.meta.kind,
     color: r.meta.kind === "geo" ? GEO_COLOR : (SAT_COLORS[r.name] || DEFAULT_COLOR),
-    radius: POLAR_SPHERE_RADIUS,
     swath_km: r.meta.swath_km || 0,
     lat: 0, lon: 0, alt: 0,
     text: r.meta.name,
