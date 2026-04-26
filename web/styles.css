@@ -164,6 +164,27 @@ th {
 }
 tbody tr:hover { background: var(--table-row); }
 
+.sat-html-label {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  font-family: "JetBrains Mono", "Consolas", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(11, 14, 26, 0.88);
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  letter-spacing: 0.5px;
+}
+.sat-html-label.geo {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+
 .sat-chip {
   display: inline-block;
   font-size: 11px;

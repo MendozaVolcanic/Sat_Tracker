@@ -11,7 +11,7 @@ const PASS_WINDOW_H = 24;
 const MIN_ELEV_DEG = 20;
 
 const GEO_COLOR = "#ffd166";
-const GEO_SPHERE_RADIUS = 1.2;          // más grandes que polares
+const GEO_SPHERE_RADIUS = 5.0;          // grande para verse a 36k km de distancia
 const POLAR_SPHERE_RADIUS = 0.6;
 const SAT_COLORS = {
   "SENTINEL-5P":  "#ff6b3d",
@@ -30,6 +30,15 @@ const SAT_COLORS = {
   "METOP-C":      "#5ce3f3",
 };
 const DEFAULT_COLOR = "#4cc9f0";
+
+// Posiciones nominales de geoestacionarios (longitud subsatelital).
+// Son estacionarios por diseño — el drift orbital es < 1° y no afecta la
+// visualización. Hardcodear es mucho más confiable que SDP4 para deep-space.
+const GEO_POSITIONS = {
+  "GOES-19":     { lat: 0, lon: -75.2, alt: 35786 },
+  "Himawari-9":  { lat: 0, lon: 140.7, alt: 35786 },
+  "MTG-I1":      { lat: 0, lon: 0,     alt: 35786 },
+};
 
 // Mapeo nombres operacionales OVDAS → satélites del catálogo.
 // Útil para que el guardián identifique de qué sat viene la imagen que mira.
@@ -224,13 +233,19 @@ function buildSatState() {
 
 function tickPositions(now) {
   for (const s of satState) {
-    const pos = propagate(s._satrec, now);
-    if (!pos) continue;
+    let pos;
+    if (s.kind === "geo") {
+      pos = GEO_POSITIONS[s.name] || { lat: 0, lon: 0, alt: 35786 };
+    } else {
+      pos = propagate(s._satrec, now);
+      if (!pos) continue;
+    }
     s.lat = pos.lat;
     s.lon = pos.lon;
     s.lng = pos.lon;
     s.alt = pos.alt;
-    s.labelAlt = pos.alt / 6371 + 0.05;
+    // Geos están a 35786 km — labelAlt en unidades de radio terrestre.
+    s.labelAlt = s.kind === "geo" ? 0.4 : pos.alt / 6371 + 0.05;
   }
 }
 
@@ -409,15 +424,23 @@ function setupSatLayers() {
       Object.assign(obj.position, globe.getCoords(d.lat, d.lon, d.alt / 6371));
     });
 
-  // Labels persistentes — sólo cambia .lng / .labelAlt en cada frame.
+  // Labels via HTML elements — siempre renderizan, no se auto-ocultan
+  // por colisión (problema de globe.gl labelsData).
   globe
-    .labelsData(satState)
-    .labelLat("lat").labelLng("lng").labelAltitude("labelAlt")
-    .labelText(d => showLabels ? d.text : "")
-    .labelSize(d => d.kind === "geo" ? 1.3 : 0.85)
-    .labelColor("color")
-    .labelDotRadius(0).labelResolution(3)
-    .labelIncludeDot(false);
+    .htmlElementsData(satState)
+    .htmlLat("lat").htmlLng("lng").htmlAltitude("labelAlt")
+    .htmlElement(d => {
+      const div = document.createElement("div");
+      div.className = "sat-html-label" + (d.kind === "geo" ? " geo" : "");
+      div.textContent = d.text;
+      div.style.color = d.color;
+      div.style.borderColor = d.color;
+      return div;
+    })
+    .htmlElementVisibilityModifier((elem, hide) => {
+      // Mostrar siempre, sin importar si está en cara opuesta del globo.
+      elem.style.display = (hide || !showLabels) ? "none" : "block";
+    });
 
   rebuildTracks();
 }
@@ -427,7 +450,7 @@ function animationLoop() {
   const now = new Date();
   tickPositions(now);
   globe.customLayerData(satState);
-  globe.labelsData(satState);
+  globe.htmlElementsData(satState);
   // Footprints más pesados — refresco cada ~12 frames (~5 Hz).
   if (showFootprints && (++_footprintTickCounter % 12 === 0)) {
     rebuildFootprints();
@@ -630,7 +653,9 @@ async function main() {
   $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildTracks(); };
   $("#chk-labels").onchange = (e) => {
     showLabels = e.target.checked;
-    globe.labelText(d => showLabels ? d.text : "");
+    document.querySelectorAll(".sat-html-label").forEach(el => {
+      el.style.display = showLabels ? "block" : "none";
+    });
   };
   $("#chk-footprints").onchange = (e) => {
     showFootprints = e.target.checked;
