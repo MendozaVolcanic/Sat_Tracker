@@ -250,7 +250,132 @@ tbody tr:hover { background: var(--table-row); }
 }
 .disclaimer-inline strong { color: #f3c75c; }
 
+/* ── Día / noche tag en filas de pasajes ─────────────────────────────── */
+.dn-tag {
+  display: inline-block;
+  font-size: 11px;
+  margin-left: 4px;
+  cursor: help;
+  filter: saturate(1.4);
+}
+.dn-day  { color: #ffd166; }
+.dn-term { color: #ff9500; }
+.dn-night { color: #94a3ff; }
+
+/* ── Botón Preview ▶ en filas de tabla ────────────────────────────────── */
+.preview-btn {
+  width: auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.preview-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ── Banner de preview en curso ───────────────────────────────────────── */
+#preview-banner {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 149, 0, 0.95);
+  color: #1a1305;
+  padding: 8px 18px;
+  border-radius: 24px;
+  font-weight: 600;
+  font-size: 13px;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(255,149,0,0.4);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.preview-cancel {
+  width: auto;
+  background: rgba(0,0,0,0.25);
+  color: #fff;
+  border: none;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.preview-cancel:hover { background: rgba(0,0,0,0.5); }
+
+/* ── Responsive: vista compacta móvil (idea 15) ──────────────────────── */
 @media (max-width: 900px) {
-  main { grid-template-columns: 1fr; grid-template-rows: 60vh 1fr; }
-  #sidebar { border-left: none; border-top: 1px solid var(--border); }
+  main {
+    grid-template-columns: 1fr;
+    grid-template-rows: 50vh 1fr;
+  }
+  #sidebar {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 10px;
+  }
+  header {
+    padding: 8px 12px;
+    height: 56px;
+  }
+  header h1 { font-size: 15px; }
+  .sub { display: none; }
+  .header-meta { gap: 12px; font-size: 11px; }
+  .header-meta .lbl { font-size: 9px; }
+  .legend {
+    bottom: 8px; left: 8px; padding: 8px 10px;
+    font-size: 11px; max-width: 200px;
+  }
+  .panel { padding: 10px; margin-bottom: 8px; }
+  .panel h2 { font-size: 11px; }
+  table { font-size: 11px; }
+  th, td { padding: 4px 5px; }
+}
+
+/* ── Móvil compacto extremo ───────────────────────────────────────────── */
+@media (max-width: 600px) {
+  main { grid-template-rows: 45vh 1fr; }
+  header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .header-meta { width: 100%; justify-content: space-between; gap: 8px; }
+  .title { gap: 8px; }
+  .logo { font-size: 20px; }
+  header h1 { font-size: 13px; }
+  /* Colapsa paneles secundarios — sólo el primero abierto */
+  .panel:nth-child(n+4) > *:not(h2) { display: none; }
+  .panel:nth-child(n+4) h2 {
+    cursor: pointer;
+  }
+  .panel:nth-child(n+4) h2::after {
+    content: " ▸ tocar para abrir";
+    font-size: 9px; color: var(--fg-muted);
+    text-transform: none; letter-spacing: 0;
+  }
+  .panel:nth-child(n+4).expanded > * { display: revert; }
+  .panel:nth-child(n+4).expanded h2::after { content: " ▾"; }
+
+  .legend {
+    bottom: 5px; left: 5px; right: 5px; max-width: none;
+    flex-direction: row; flex-wrap: wrap; gap: 6px;
+    font-size: 10px;
+  }
+  .legend button { padding: 3px 8px; font-size: 10px; }
+
+  /* Banner preview más pequeño en móvil */
+  #preview-banner {
+    top: auto; bottom: 12px;
+    font-size: 11px; padding: 6px 12px;
+    max-width: 95vw;
+  }
 }

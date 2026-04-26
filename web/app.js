@@ -77,6 +77,29 @@ let globe = null;
 let showTracks = true;
 let showLabels = true;
 let showFootprints = false;
+let showCone = false;
+
+// Time warp — virtualTime != null cuando estamos en preview/replay.
+let virtualTime = null;       // ms epoch
+let timeRate = 1;             // velocidad de avance (1 = real, 30 = preview)
+let _lastWallMs = null;
+let previewTimeout = null;
+
+function getNow() {
+  return virtualTime === null ? new Date() : new Date(virtualTime);
+}
+
+function advanceVirtualTime() {
+  if (virtualTime === null) {
+    _lastWallMs = null;
+    return;
+  }
+  const wall = Date.now();
+  if (_lastWallMs !== null) {
+    virtualTime += (wall - _lastWallMs) * timeRate;
+  }
+  _lastWallMs = wall;
+}
 
 const $ = (s) => document.querySelector(s);
 
@@ -114,6 +137,29 @@ function elevClass(e) {
   if (e >= 60) return "elev-high";
   if (e >= 35) return "elev-mid";
   return "elev-low";
+}
+
+// Elevación solar (grados sobre horizonte) en (lat,lon) en momento t.
+// Fórmula astronómica estándar — precisión ~0.1° suficiente para clasificar
+// día / terminator / noche.
+function solarElevation(lat, lon, t) {
+  const dayOfYear = Math.floor(
+    (t - new Date(Date.UTC(t.getUTCFullYear(), 0, 0))) / 86400000,
+  );
+  const decl = 23.45 * Math.sin((2 * Math.PI / 365) * (dayOfYear - 81)) * Math.PI / 180;
+  const utcH = t.getUTCHours() + t.getUTCMinutes() / 60 + t.getUTCSeconds() / 3600;
+  const hourAngle = ((utcH - 12) * 15 + lon) * Math.PI / 180;
+  const φ = lat * Math.PI / 180;
+  const sinAlt = Math.sin(φ) * Math.sin(decl) + Math.cos(φ) * Math.cos(decl) * Math.cos(hourAngle);
+  return Math.asin(Math.max(-1, Math.min(1, sinAlt))) * 180 / Math.PI;
+}
+
+// Devuelve { icon, label } según elevación solar en el momento del pasaje.
+function dayNightInfo(volcano, t) {
+  const sunElev = solarElevation(volcano.lat, volcano.lon, t);
+  if (sunElev > 6) return { icon: "☀", label: "día", elev: sunElev, kind: "day" };
+  if (sunElev > -6) return { icon: "🌅", label: "terminator", elev: sunElev, kind: "term" };
+  return { icon: "🌙", label: "noche", elev: sunElev, kind: "night" };
 }
 
 async function loadData() {
@@ -231,7 +277,9 @@ function buildSatState() {
   }));
 }
 
-function tickPositions(now) {
+function tickPositions(_unused) {
+  advanceVirtualTime();
+  const now = getNow();
   for (const s of satState) {
     let pos;
     if (s.kind === "geo") {
@@ -326,6 +374,75 @@ function makeSwathStrip(satrec, startTime, ahedMin, swathKm) {
   }
   if (segL.length > 1) segments.push({ left: segL, right: segR });
   return segments;
+}
+
+// Cono de visibilidad desde el volcán: región del cielo donde un sat es
+// "visible" con elevación >= MIN_ELEV. Tip en el volcán, eje hacia zenith.
+// Ángulo de apertura medio = 90 - MIN_ELEV (e.g. 70° con MIN_ELEV=20).
+let coneObj = null;
+
+function rebuildCone() {
+  // Quitar cono previo si existe.
+  if (coneObj) {
+    if (coneObj.parent) coneObj.parent.remove(coneObj);
+    coneObj.geometry.dispose();
+    coneObj.material.dispose();
+    coneObj = null;
+  }
+  if (!showCone || !selectedVolcano) return;
+
+  // Cono: tip arriba, base abajo (orientación default de ConeGeometry).
+  // Lo creamos con tip en origen, base hacia +Y, lo rotamos para apuntar
+  // hacia zenith del volcán, y lo posicionamos en el volcán.
+  const halfAngleDeg = 90 - MIN_ELEV_DEG;
+  const halfAngleRad = halfAngleDeg * Math.PI / 180;
+  // Altura suficiente para alcanzar órbita LEO (~800 km / 6371 = 0.126
+  // unidades en escala globe.gl, que tiene radio = 100 → 12.6 unidades).
+  // Usamos 25 unidades (~1600 km) para asegurar cubrir todos los polares.
+  const height = 25;
+  const baseRadius = height * Math.tan(halfAngleRad);
+
+  const geo = new THREE.ConeGeometry(baseRadius, height, 48, 1, true);
+  // Por default la geometría tiene su tip en (0, h/2, 0) y base en (0, -h/2, 0).
+  // Trasladamos para que el tip quede en el origen y la base en (0, h, 0).
+  geo.translate(0, height / 2, 0);
+
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x4cc9f0,
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const cone = new THREE.Mesh(geo, mat);
+
+  // Wireframe sobre la superficie cónica (más visual).
+  const wire = new THREE.Mesh(
+    new THREE.ConeGeometry(baseRadius, height, 24, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x4cc9f0, wireframe: true, transparent: true, opacity: 0.35,
+    }),
+  );
+  wire.geometry.translate(0, height / 2, 0);
+  cone.add(wire);
+
+  // Posicionar el cono en el volcán. globe.gl: getCoords(lat,lon,altRel)
+  // devuelve {x,y,z} de un punto en escena.
+  const tip = globe.getCoords(selectedVolcano.lat, selectedVolcano.lon, 0);
+  cone.position.set(tip.x, tip.y, tip.z);
+  // Orientar el cono para apuntar hacia zenith (radial outward).
+  // El tip está en el origen del mesh; queremos que el eje +Y del mesh
+  // apunte desde el centro de la Tierra hacia el volcán.
+  const center = new THREE.Vector3(0, 0, 0);
+  const tipVec = new THREE.Vector3(tip.x, tip.y, tip.z);
+  const radialOut = tipVec.clone().sub(center).normalize();
+  // Necesitamos rotar el "+Y" del mesh para que coincida con radialOut.
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  cone.quaternion.setFromUnitVectors(yAxis, radialOut);
+
+  // Agregar al scene de three.js. globe.gl expone .scene().
+  globe.scene().add(cone);
+  coneObj = cone;
 }
 
 function rebuildFootprints() {
@@ -447,8 +564,7 @@ function setupSatLayers() {
 
 let _footprintTickCounter = 0;
 function animationLoop() {
-  const now = new Date();
-  tickPositions(now);
+  tickPositions();
   globe.customLayerData(satState);
   globe.htmlElementsData(satState);
   // Footprints más pesados — refresco cada ~12 frames (~5 Hz).
@@ -494,6 +610,7 @@ function onVolcanoChange() {
     info.appendChild(el("div", {}, ["Ranking SERNAGEOMIN: ", el("b", { text: `#${v.ranking}` })]));
   }
   updatePassesTable();
+  rebuildCone();
   globe.pointOfView({ lat: v.lat, lng: v.lon, altitude: 1.6 }, 800);
 }
 
@@ -501,7 +618,7 @@ function updatePassesTable() {
   const tbody = $("#passes-table tbody");
   clear(tbody);
   if (!selectedVolcano) return;
-  const now = new Date();
+  const now = getNow();
   const t1 = new Date(now.getTime() + PASS_WINDOW_H * 3600 * 1000);
   const rows = [];
   for (const r of satRecords) {
@@ -509,7 +626,9 @@ function updatePassesTable() {
     const passes = findPasses(r.satrec, selectedVolcano, now, t1);
     for (const p of passes) {
       const dataAt = new Date(p.set.getTime() + r.meta.nrt_latency_min * 60000);
-      rows.push({ sat: r.meta.name, peak: p.peak, peakT: p.peakT, dataAt });
+      const dn = dayNightInfo(selectedVolcano, p.peakT);
+      rows.push({ sat: r.meta.name, peak: p.peak, peakT: p.peakT, dataAt, dn,
+                  rise: p.rise, set: p.set });
     }
   }
   rows.sort((a, b) => a.peakT - b.peakT);
@@ -522,13 +641,31 @@ function updatePassesTable() {
   }
   for (const row of rows) {
     const tr = el("tr");
-    tr.appendChild(el("td", {}, [el("b", { text: row.sat })]));
+    const satCell = el("td", {}, [el("b", { text: row.sat })]);
+    const dnSpan = el("span", {
+      class: `dn-tag dn-${row.dn.kind}`,
+      text: row.dn.icon,
+      title: `Sol ${row.dn.elev.toFixed(0)}° — ${row.dn.label}`,
+    });
+    satCell.appendChild(document.createTextNode(" "));
+    satCell.appendChild(dnSpan);
+    tr.appendChild(satCell);
     tr.appendChild(el("td", {}, [
       fmtTime(row.peakT) + " ",
       el("span", { class: "muted small", text: fmtDelta(row.peakT, now) }),
     ]));
     tr.appendChild(el("td", { class: elevClass(row.peak), text: `${Math.round(row.peak)}°` }));
     tr.appendChild(el("td", { text: fmtTime(row.dataAt) }));
+    // Botón Preview (idea 20)
+    const playCell = el("td");
+    const playBtn = el("button", {
+      class: "preview-btn",
+      title: "Animación acelerada del pasaje (30×)",
+      text: "▶",
+    });
+    playBtn.onclick = () => previewPass(row);
+    playCell.appendChild(playBtn);
+    tr.appendChild(playCell);
     tbody.appendChild(tr);
   }
 }
@@ -621,7 +758,57 @@ function populateGeoTable() {
 }
 
 function tickHeader() {
-  $("#now-utc").textContent = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const now = getNow();
+  let text = now.toISOString().slice(0, 19).replace("T", " ");
+  if (virtualTime !== null) text = `▶ ${text}  (preview ${timeRate}×)`;
+  $("#now-utc").textContent = text;
+  $("#now-utc").style.color = virtualTime !== null ? "#ff9500" : "";
+}
+
+function previewPass(row) {
+  if (previewTimeout) {
+    clearTimeout(previewTimeout);
+    previewTimeout = null;
+  }
+  // Empezar 90 s antes del rise, terminar 60 s después del set.
+  const startMs = row.rise.getTime() - 90 * 1000;
+  const endMs = row.set.getTime() + 60 * 1000;
+  const passDurMs = endMs - startMs;
+  timeRate = 30;
+  virtualTime = startMs;
+  _lastWallMs = null;
+  // Centrar globo en volcán para ver el pasaje.
+  globe.pointOfView({
+    lat: selectedVolcano.lat, lng: selectedVolcano.lon, altitude: 1.4,
+  }, 600);
+  showPreviewBanner(row);
+  previewTimeout = setTimeout(() => {
+    virtualTime = null;
+    timeRate = 1;
+    hidePreviewBanner();
+  }, passDurMs / timeRate + 500);
+}
+
+function showPreviewBanner(row) {
+  hidePreviewBanner();
+  const banner = el("div", { id: "preview-banner" });
+  banner.appendChild(document.createTextNode(
+    `▶ Preview ${row.sat} sobre ${selectedVolcano.name} (${timeRate}× tiempo real)`));
+  const cancel = el("button", { class: "preview-cancel", text: "✕ Cancelar" });
+  cancel.onclick = cancelPreview;
+  banner.appendChild(cancel);
+  document.body.appendChild(banner);
+}
+function hidePreviewBanner() {
+  const b = document.getElementById("preview-banner");
+  if (b) b.remove();
+}
+function cancelPreview() {
+  if (previewTimeout) clearTimeout(previewTimeout);
+  previewTimeout = null;
+  virtualTime = null;
+  timeRate = 1;
+  hidePreviewBanner();
 }
 
 async function main() {
@@ -650,6 +837,15 @@ async function main() {
     globe.pointOfView({ lat: 0, lng: -70, altitude: 2.5 }, 800);
   $("#btn-geos").onclick = () =>
     globe.pointOfView({ lat: 0, lng: -90, altitude: 8 }, 1500);
+
+  // En móvil, hacer paneles 4+ colapsables (ahorra scroll).
+  document.querySelectorAll(".panel h2").forEach(h => {
+    h.addEventListener("click", () => {
+      if (window.innerWidth <= 600) {
+        h.parentElement.classList.toggle("expanded");
+      }
+    });
+  });
   $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildTracks(); };
   $("#chk-labels").onchange = (e) => {
     showLabels = e.target.checked;
@@ -660,6 +856,10 @@ async function main() {
   $("#chk-footprints").onchange = (e) => {
     showFootprints = e.target.checked;
     rebuildFootprints();
+  };
+  $("#chk-cone").onchange = (e) => {
+    showCone = e.target.checked;
+    rebuildCone();
   };
 }
 

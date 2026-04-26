@@ -46,6 +46,7 @@
       <label><input type="checkbox" id="chk-tracks" checked /> Mostrar trazas</label>
       <label><input type="checkbox" id="chk-labels" checked /> Etiquetas sat</label>
       <label><input type="checkbox" id="chk-footprints" /> Footprint (swath)</label>
+      <label><input type="checkbox" id="chk-cone" /> Cono visibilidad volcán</label>
     </div>
   </section>
 
@@ -61,10 +62,11 @@
       <p class="muted small">Elev. mínima 20°. Datos NRT = pasaje + latencia.</p>
       <table id="passes-table">
         <thead><tr>
-          <th>Sat</th>
+          <th>Sat <span class="muted small" title="☀ día / 🌅 terminator / 🌙 noche al momento del pasaje">☀/🌙</span></th>
           <th>Inicio (UTC)</th>
           <th>Elev</th>
           <th title="Latencia estimada — pendiente validación empírica">Datos ~ <span class="warn-badge">⚠</span></th>
+          <th title="Animación acelerada del pasaje">▶</th>
         </tr></thead>
         <tbody></tbody>
       </table>
