@@ -2,8 +2,9 @@
 // Datos provienen de JSON generados desde catálogos Python locales (confiables).
 // SGP4 con satellite.js usando TLEs cacheados en repo.
 
-const REFRESH_MS_POSITIONS = 5000;
-const REFRESH_MS_TABLE = 60000;
+const REFRESH_MS_TRACKS = 30000;        // recalcula trazas 90 min cada 30 s
+const REFRESH_MS_NOW_TABLE = 5000;       // tabla "sats ahora" cada 5 s
+const REFRESH_MS_PASSES_TABLE = 60000;   // tabla pasajes 24 h cada 60 s
 const TRACK_AHEAD_MIN = 90;
 const TRACK_STEP_S = 60;
 const PASS_WINDOW_H = 24;
@@ -169,55 +170,59 @@ function initGlobe() {
     });
 }
 
-function rebuildSatLayers() {
-  const now = new Date();
-  const satPoints = [];
-  const trackPaths = [];
-  const labels = [];
+// Estado mutable de cada sat — los objetos se referencian por identidad,
+// así globe.gl solo actualiza posición/labels en cada frame sin recrear meshes.
+let satState = [];
 
+function buildSatState() {
+  satState = satRecords.map(r => ({
+    name: r.meta.name,
+    color: SAT_COLORS[r.name] || DEFAULT_COLOR,
+    lat: 0, lon: 0, alt: 0,
+    text: r.meta.name,
+    lng: 0,                  // alias para labelLng
+    labelAlt: 0,
+    _satrec: r.satrec,
+  }));
+}
+
+function tickPositions(now) {
+  for (const s of satState) {
+    const pos = propagate(s._satrec, now);
+    if (!pos) continue;
+    s.lat = pos.lat;
+    s.lon = pos.lon;
+    s.lng = pos.lon;
+    s.alt = pos.alt;
+    s.labelAlt = pos.alt / 6371 + 0.05;
+  }
+}
+
+function rebuildTracks() {
+  const now = new Date();
+  const trackPaths = [];
+  if (!showTracks) {
+    globe.pathsData([]);
+    return;
+  }
   for (const r of satRecords) {
     const color = SAT_COLORS[r.name] || DEFAULT_COLOR;
-    const pos = propagate(r.satrec, now);
-    if (!pos) continue;
-    satPoints.push({ ...pos, name: r.meta.name, color });
-
-    if (showTracks) {
-      const pts = [];
-      for (let i = 0; i <= TRACK_AHEAD_MIN * 60 / TRACK_STEP_S; i++) {
-        const t = new Date(now.getTime() + i * TRACK_STEP_S * 1000);
-        const p = propagate(r.satrec, t);
-        if (p) pts.push([p.lat, p.lon, p.alt]);
-      }
-      let seg = [];
-      for (let i = 0; i < pts.length; i++) {
-        if (i > 0 && Math.abs(pts[i][1] - pts[i - 1][1]) > 180) {
-          if (seg.length > 1) trackPaths.push({ coords: seg, color });
-          seg = [];
-        }
-        seg.push(pts[i]);
-      }
-      if (seg.length > 1) trackPaths.push({ coords: seg, color });
+    const pts = [];
+    for (let i = 0; i <= TRACK_AHEAD_MIN * 60 / TRACK_STEP_S; i++) {
+      const t = new Date(now.getTime() + i * TRACK_STEP_S * 1000);
+      const p = propagate(r.satrec, t);
+      if (p) pts.push([p.lat, p.lon, p.alt]);
     }
-
-    if (showLabels) {
-      labels.push({
-        lat: pos.lat, lng: pos.lon, alt: pos.alt / 6371 + 0.05,
-        text: r.meta.name, color,
-      });
+    let seg = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (i > 0 && Math.abs(pts[i][1] - pts[i - 1][1]) > 180) {
+        if (seg.length > 1) trackPaths.push({ coords: seg, color });
+        seg = [];
+      }
+      seg.push(pts[i]);
     }
+    if (seg.length > 1) trackPaths.push({ coords: seg, color });
   }
-
-  globe
-    .customLayerData(satPoints)
-    .customThreeObject(d => {
-      const geo = new THREE.SphereGeometry(0.6, 16, 16);
-      const mat = new THREE.MeshBasicMaterial({ color: d.color });
-      return new THREE.Mesh(geo, mat);
-    })
-    .customThreeObjectUpdate((obj, d) => {
-      Object.assign(obj.position, globe.getCoords(d.lat, d.lon, d.alt / 6371));
-    });
-
   globe
     .pathsData(trackPaths)
     .pathPoints("coords")
@@ -227,12 +232,40 @@ function rebuildSatLayers() {
     .pathColor(d => [d.color, d.color])
     .pathStroke(1.2)
     .pathTransitionDuration(0);
+}
 
+function setupSatLayers() {
+  buildSatState();
+  // Custom layer: una esfera por satélite, persistente.
   globe
-    .labelsData(labels)
-    .labelLat("lat").labelLng("lng").labelAltitude("alt")
-    .labelText("text").labelSize(0.45).labelColor("color")
+    .customLayerData(satState)
+    .customThreeObject(d => {
+      const geo = new THREE.SphereGeometry(0.6, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color: d.color });
+      return new THREE.Mesh(geo, mat);
+    })
+    .customThreeObjectUpdate((obj, d) => {
+      Object.assign(obj.position, globe.getCoords(d.lat, d.lon, d.alt / 6371));
+    });
+
+  // Labels persistentes — sólo cambia .lng / .labelAlt en cada frame.
+  globe
+    .labelsData(satState)
+    .labelLat("lat").labelLng("lng").labelAltitude("labelAlt")
+    .labelText(d => showLabels ? d.text : "")
+    .labelSize(0.45).labelColor("color")
     .labelDotRadius(0).labelResolution(2);
+
+  rebuildTracks();
+}
+
+function animationLoop() {
+  const now = new Date();
+  tickPositions(now);
+  // Forzar a globe.gl que reaplique customThreeObjectUpdate / labels en frame.
+  globe.customLayerData(satState);
+  globe.labelsData(satState);
+  requestAnimationFrame(animationLoop);
 }
 
 function populateVolcanoSelect() {
@@ -309,6 +342,12 @@ function updatePassesTable() {
   }
 }
 
+function flyToSat(name) {
+  const s = satState.find(x => x.name === name);
+  if (!s) return;
+  globe.pointOfView({ lat: s.lat, lng: s.lon, altitude: 1.2 }, 1000);
+}
+
 function updateNowTable() {
   const tbody = $("#now-table tbody");
   clear(tbody);
@@ -320,10 +359,14 @@ function updateNowTable() {
   for (const r of rows) {
     const overChile = r.pos.lat < -17 && r.pos.lat > -56 && r.pos.lon < -65 && r.pos.lon > -77;
     const tr = el("tr");
+    tr.style.cursor = "pointer";
+    tr.title = `Click: ir a ${r.name}`;
+    tr.onclick = () => flyToSat(r.name);
     const c1 = el("td", {}, [el("b", { text: r.name })]);
     if (overChile) {
       const dot = el("span", { text: " ●" });
       dot.style.color = "#5cf377";
+      dot.title = "Sobre Chile ahora";
       c1.appendChild(dot);
     }
     tr.appendChild(c1);
@@ -358,22 +401,29 @@ async function main() {
   populateVolcanoSelect();
   populateGeoTable();
   initGlobe();
-  rebuildSatLayers();
+  setupSatLayers();
   selectedVolcano = volcanoes.find(v => v.name === $("#volcano-select").value);
   onVolcanoChange();
   updateNowTable();
 
-  setInterval(tickHeader, 1000);
-  setInterval(() => { rebuildSatLayers(); updateNowTable(); }, REFRESH_MS_POSITIONS);
-  setInterval(updatePassesTable, REFRESH_MS_TABLE);
   tickHeader();
+  setInterval(tickHeader, 1000);
+  setInterval(updateNowTable, REFRESH_MS_NOW_TABLE);
+  setInterval(rebuildTracks, REFRESH_MS_TRACKS);
+  setInterval(updatePassesTable, REFRESH_MS_PASSES_TABLE);
+
+  // Movimiento continuo: 60 fps.
+  requestAnimationFrame(animationLoop);
 
   $("#btn-chile").onclick = () =>
     globe.pointOfView({ lat: -35, lng: -71, altitude: 1.5 }, 800);
   $("#btn-world").onclick = () =>
     globe.pointOfView({ lat: 0, lng: -70, altitude: 2.5 }, 800);
-  $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildSatLayers(); };
-  $("#chk-labels").onchange = (e) => { showLabels = e.target.checked; rebuildSatLayers(); };
+  $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildTracks(); };
+  $("#chk-labels").onchange = (e) => {
+    showLabels = e.target.checked;
+    globe.labelText(d => showLabels ? d.text : "");
+  };
 }
 
 window.addEventListener("DOMContentLoaded", main);
