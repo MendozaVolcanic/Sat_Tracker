@@ -756,7 +756,12 @@ function setupSatLayers() {
       return icon;
     })
     .customThreeObjectUpdate((obj, d) => {
-      orientRadial(obj, d.lat, d.lon, d.alt / 6371);
+      // Para geos, comprimir altitud visual: están realmente a 5.6 globe-radii
+      // pero visualmente se ven muy lejos del planeta. Renderizamos a alt 0.6
+      // para que parezcan "anclados" al globo. El label usa s.labelAlt (0.4)
+      // que queda al lado.
+      const altRel = d.kind === "geo" ? 0.6 : d.alt / 6371;
+      orientRadial(obj, d.lat, d.lon, altRel);
     });
 
   // Labels manuales: bypasean globe.gl htmlElementsData (que cachea posiciones
@@ -821,7 +826,11 @@ function updateManualLabels() {
 
   for (const s of satState) {
     if (!s._labelEl) continue;
-    const c = globe.getCoords(s.lat, s.lon, s.alt / 6371);
+    // Posicionar label en s.labelAlt (cerca del globo para geos a 0.4,
+    // a la altitud del icono para polares). NO usar s.alt directamente
+    // porque para geos s.alt = 35786 km → 5.6 globe-radii fuera del globo,
+    // y el label quedaría en el espacio lejos del planeta.
+    const c = globe.getCoords(s.lat, s.lon, s.labelAlt);
     _projVec.set(c.x, c.y, c.z);
 
     // Test de oclusión por globo: sólo polares se ocluyen (geos están a
