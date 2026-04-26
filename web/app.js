@@ -533,6 +533,8 @@ function updateGhostPositions(now) {
     entry.halo.material.opacity = pulse;
   }
 }
+
+function rebuildTracks() {
   const now = new Date();
   const trackPaths = [];
   if (!showTracks) {
