@@ -47,6 +47,7 @@
       <label><input type="checkbox" id="chk-labels" checked /> Etiquetas sat</label>
       <label><input type="checkbox" id="chk-footprints" /> Footprint (swath)</label>
       <label><input type="checkbox" id="chk-cone" /> Cono visibilidad volcán</label>
+      <label title="Iconito chico que recorre la traza próximos 90 min en 30s — muestra dirección y por dónde pasará"><input type="checkbox" id="chk-ghosts" /> Preview rápido (ghosts)</label>
     </div>
   </section>
 
@@ -118,6 +119,9 @@
       </p>
       <p class="small">
         Cálculo en navegador, sin servidor.
+        <strong>Posiciones y trayectorias son reales</strong> — algoritmo SGP4 estándar
+        (NORAD/DoD) con TLEs oficiales. Precisión típica ±1-3 km para LEO con TLE
+        de menos de 7 días.
       </p>
       <p class="small disclaimer-inline">
         ⚠ <strong>Latencias NRT estimadas, no validadas empíricamente.</strong>
@@ -157,6 +161,6 @@ window.addEventListener("unhandledrejection", (e) => {
   }
 });
 </script>
-<script type="module" src="app.js?v=11"></script>
+<script type="module" src="app.js?v=12"></script>
 </body>
 </html>

@@ -16,8 +16,8 @@ const MIN_ELEV_DEG = 20;
 
 const GEO_COLOR = "#ffd166";
 const GEO_ICON_SCALE = 5.5;             // satélite-icono grande para geos
-const POLAR_SPHERE_RADIUS = 0.55;
-const GHOST_ICON_SCALE = 1.1;           // antes 0.55 — desde lejos era solo un punto
+const POLAR_ICON_SCALE = 0.85;          // satélite-icono para sat polar en posición real
+const GHOST_ICON_SCALE = 1.0;           // ghost (preview) un poco más grande para distinguir
 
 // Devuelve un Group THREE con forma de satélite: cuerpo + paneles + antena.
 // Color = color del sat. scale ajusta tamaño general.
@@ -157,6 +157,7 @@ let showTracks = true;
 let showLabels = true;
 let showFootprints = false;
 let showCone = false;
+let showGhosts = false;     // off por default — el sat real ya muestra dirección
 
 // Time warp — virtualTime != null cuando estamos en preview/replay.
 let virtualTime = null;       // ms epoch
@@ -575,26 +576,27 @@ function ensureGhostMeshes() {
       if (o.material) {
         o.material = o.material.clone();
         o.material.transparent = true;
-        o.material.opacity = (o.material.opacity || 1) * 0.85;
+        o.material.opacity = (o.material.opacity || 1) * 0.7;
       }
     });
-    // Halo glow para que se note el movimiento
     const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(GHOST_ICON_SCALE * 1.6, 12, 12),
+      new THREE.SphereGeometry(GHOST_ICON_SCALE * 1.4, 12, 12),
       new THREE.MeshBasicMaterial({
-        color, transparent: true, opacity: 0.2, depthWrite: false,
+        color, transparent: true, opacity: 0.15, depthWrite: false,
       }),
     );
     icon.add(halo);
+    icon.visible = showGhosts;   // off por default
     globe.scene().add(icon);
     ghostMeshes.set(r.meta.name, { mesh: icon, halo });
   }
 }
 
 function updateGhostPositions(now) {
+  if (!showGhosts) return;
   const wallSec = (Date.now() / 1000) % GHOST_PERIOD_S;
   const frac = wallSec / GHOST_PERIOD_S;
-  const pulse = 0.15 + 0.15 * Math.sin(wallSec * 2 * Math.PI / GHOST_PERIOD_S);
+  const pulse = 0.1 + 0.15 * Math.sin(wallSec * 2 * Math.PI / GHOST_PERIOD_S);
 
   for (const r of satRecords) {
     if (r.meta.kind === "geo") continue;
@@ -647,36 +649,27 @@ function rebuildTracks() {
 
 function setupSatLayers() {
   buildSatState();
-  // Custom layer: por sat, según tipo:
-  //   - Polar: esfera pequeña en posición actual (dot bright)
-  //   - Geo: ícono 3D de satélite a 36k km (cuerpo + paneles + antena)
+  // Custom layer: ícono 3D de satélite por cada sat (polar o geo).
+  // Posiciones se actualizan a cada frame con SGP4 → tiempo real.
   globe
     .customLayerData(satState)
     .customThreeObject(d => {
-      if (d.kind === "geo") {
-        const icon = makeSatelliteIcon(d.color, GEO_ICON_SCALE);
-        // Halo brillante para que se note a la distancia
-        const halo = new THREE.Mesh(
-          new THREE.SphereGeometry(GEO_ICON_SCALE * 0.6, 16, 16),
-          new THREE.MeshBasicMaterial({
-            color: d.color, transparent: true, opacity: 0.18, depthWrite: false,
-          }),
-        );
-        icon.add(halo);
-        return icon;
-      }
-      return new THREE.Mesh(
-        new THREE.SphereGeometry(d.radius, 16, 16),
-        new THREE.MeshBasicMaterial({ color: d.color }),
+      const scale = d.kind === "geo" ? GEO_ICON_SCALE : POLAR_ICON_SCALE;
+      const icon = makeSatelliteIcon(d.color, scale);
+      // Halo glow alrededor — más fuerte para geos (lejos), tenue para polares
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(scale * 0.7, 16, 16),
+        new THREE.MeshBasicMaterial({
+          color: d.color, transparent: true,
+          opacity: d.kind === "geo" ? 0.18 : 0.10,
+          depthWrite: false,
+        }),
       );
+      icon.add(halo);
+      return icon;
     })
     .customThreeObjectUpdate((obj, d) => {
-      if (d.kind === "geo") {
-        orientRadial(obj, d.lat, d.lon, d.alt / 6371);
-      } else {
-        const c = globe.getCoords(d.lat, d.lon, d.alt / 6371);
-        obj.position.set(c.x, c.y, c.z);
-      }
+      orientRadial(obj, d.lat, d.lon, d.alt / 6371);
     });
 
   // Labels via HTML elements — siempre renderizan, no se auto-ocultan
@@ -1017,6 +1010,10 @@ async function main() {
   $("#chk-cone").onchange = (e) => {
     showCone = e.target.checked;
     rebuildCone();
+  };
+  $("#chk-ghosts").onchange = (e) => {
+    showGhosts = e.target.checked;
+    ghostMeshes.forEach(({ mesh }) => { mesh.visible = showGhosts; });
   };
 }
 
