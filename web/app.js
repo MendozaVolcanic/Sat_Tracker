@@ -1099,6 +1099,13 @@ async function main() {
   $("#btn-geos").onclick = () =>
     globe.pointOfView({ lat: 0, lng: -90, altitude: 8 }, 1500);
 
+  // Toggle pantalla-completa: oculta sidebar para que el globo ocupe todo
+  $("#btn-fullscreen-toggle").onclick = () => {
+    document.body.classList.toggle("globe-fullscreen");
+    // globe.gl no escucha resize de su contenedor automáticamente — forzar
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 280);
+  };
+
   // En móvil, paneles 3+ colapsables (los 2 primeros — Volcán y Próximos
   // pasajes — siempre abiertos, son lo más usado).
   document.querySelectorAll(".panel h2").forEach(h => {
