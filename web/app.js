@@ -807,22 +807,41 @@ function cancelPreview() {
   hidePreviewBanner();
 }
 
-async function main() {
-  // Reloj primero — siempre debe andar aunque algo abajo falle.
-  tickHeader();
-  setInterval(tickHeader, 1000);
+function debugLog(msg) {
+  console.log("[Sat_Tracker]", msg);
+  const p = document.getElementById("debug-panel");
+  const c = document.getElementById("debug-content");
+  if (p && c) {
+    const line = document.createElement("div");
+    line.textContent = "✓ " + msg;
+    line.style.color = "#5cf377";
+    c.appendChild(line);
+  }
+}
 
-  await loadData();
-  populateVolcanoSelect();
-  populateOvdasProducts();
-  populateGeoTable();
-  initGlobe();
+async function main() {
+  debugLog("main() start");
+  // Reloj primero — siempre debe andar aunque algo abajo falle.
+  try { tickHeader(); debugLog("tickHeader OK"); }
+  catch (e) { debugLog("tickHeader FAIL: " + e.message); }
+  setInterval(() => { try { tickHeader(); } catch(e){} }, 1000);
+
+  try { await loadData(); debugLog("loadData OK — " + satRecords.length + " sats"); }
+  catch (e) { debugLog("loadData FAIL: " + e.message); throw e; }
+
+  try { populateVolcanoSelect(); } catch (e) { debugLog("populateVolcanoSelect FAIL: " + e.message); }
+  try { populateOvdasProducts(); } catch (e) { debugLog("populateOvdasProducts FAIL: " + e.message); }
+  try { populateGeoTable(); } catch (e) { debugLog("populateGeoTable FAIL: " + e.message); }
+  try { initGlobe(); debugLog("initGlobe OK"); } catch (e) { debugLog("initGlobe FAIL: " + e.message); }
 
   // Cada paso protegido — un fallo no debe romper el resto del dashboard.
-  try { setupSatLayers(); } catch (e) { console.error("setupSatLayers:", e); }
+  try { setupSatLayers(); debugLog("setupSatLayers OK"); }
+  catch (e) { debugLog("setupSatLayers FAIL: " + e.message); console.error(e); }
   selectedVolcano = volcanoes.find(v => v.name === $("#volcano-select").value);
-  try { onVolcanoChange(); } catch (e) { console.error("onVolcanoChange:", e); }
-  try { updateNowTable(); } catch (e) { console.error("updateNowTable:", e); }
+  try { onVolcanoChange(); debugLog("onVolcanoChange OK"); }
+  catch (e) { debugLog("onVolcanoChange FAIL: " + e.message); console.error(e); }
+  try { updateNowTable(); debugLog("updateNowTable OK"); }
+  catch (e) { debugLog("updateNowTable FAIL: " + e.message); console.error(e); }
 
   setInterval(() => { try { updateNowTable(); } catch(e){console.error(e);} }, REFRESH_MS_NOW_TABLE);
   setInterval(() => { try { rebuildTracks(); } catch(e){console.error(e);} }, REFRESH_MS_TRACKS);
@@ -861,4 +880,20 @@ async function main() {
   };
 }
 
-window.addEventListener("DOMContentLoaded", main);
+// Fallback: si DOMContentLoaded ya disparó (script type=module es deferred),
+// invocar main() directamente.
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", main);
+} else {
+  main().catch(e => {
+    console.error("main() top-level reject:", e);
+    const c = document.getElementById("debug-content");
+    if (c) {
+      const line = document.createElement("div");
+      line.textContent = "FATAL: " + e.message;
+      line.style.color = "#ff3b30";
+      c.appendChild(line);
+      document.getElementById("debug-panel").style.display = "block";
+    }
+  });
+}

@@ -130,6 +130,33 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
-<script type="module" src="app.js"></script>
+<div id="debug-panel" style="position:fixed;bottom:8px;left:8px;background:rgba(20,8,8,0.92);color:#ff7e5c;border:1px solid #ff3b30;padding:8px 12px;border-radius:6px;font-family:monospace;font-size:11px;max-width:600px;max-height:200px;overflow:auto;z-index:9999;display:none">
+  <div style="font-weight:bold;color:#ff3b30;margin-bottom:4px">Debug — errores capturados:</div>
+  <div id="debug-content"></div>
+  <div style="font-size:9px;color:#888;margin-top:6px">Mandá esto al developer.</div>
+</div>
+<script>
+window.addEventListener("error", (e) => {
+  const p = document.getElementById("debug-panel");
+  const c = document.getElementById("debug-content");
+  if (p && c) {
+    p.style.display = "block";
+    const line = document.createElement("div");
+    line.textContent = "ERR: " + e.message + " @ " + (e.filename || "?") + ":" + (e.lineno || "?");
+    c.appendChild(line);
+  }
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const p = document.getElementById("debug-panel");
+  const c = document.getElementById("debug-content");
+  if (p && c) {
+    p.style.display = "block";
+    const line = document.createElement("div");
+    line.textContent = "PROMISE REJ: " + (e.reason && e.reason.message || e.reason || "?");
+    c.appendChild(line);
+  }
+});
+</script>
+<script type="module" src="app.js?v=7"></script>
 </body>
 </html>
