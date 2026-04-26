@@ -759,61 +759,103 @@ function setupSatLayers() {
       orientRadial(obj, d.lat, d.lon, d.alt / 6371);
     });
 
-  // Labels via HTML elements — siempre renderizan, no se auto-ocultan
-  // por colisión (problema de globe.gl labelsData).
-  globe
-    .htmlElementsData(satState)
-    .htmlLat("lat").htmlLng("lng").htmlAltitude("labelAlt")
-    .htmlElement(d => {
-      const div = document.createElement("div");
-      div.className = "sat-html-label" + (d.kind === "geo" ? " geo" : "");
-      div.textContent = d.text;
-      div.style.color = d.color;
-      div.style.borderColor = d.color;
-      d._labelEl = div;          // referencia para toggling de oclusión
-      return div;
-    });
+  // Labels manuales: bypasean globe.gl htmlElementsData (que cachea posiciones
+  // y no se actualiza al mismo ritmo que el customLayer 3D). Los posicionamos
+  // nosotros mismos en cada frame usando proyección de cámara THREE → mismo
+  // pipeline exacto que los iconos 3D, sincronizados sub-frame.
+  setupManualLabels();
 
   rebuildTracks();
   ensureGhostMeshes();
 }
 
-// Atenúa labels de sats que están detrás del globo (lado opuesto a cámara).
-// Test: dot product entre posición del sat y posición de la cámara, ambos
-// medidos desde el centro del globo. Positivo = mismo hemisferio = visible.
-const _labelTmpVec = new THREE.Vector3();
-function updateLabelOcclusion() {
-  if (!globe || !showLabels) return;
+// ── Labels manuales (bypass globe.gl htmlElementsData) ──────────────────
+// Creamos divs en un container overlaid sobre el canvas del globo.
+// En cada frame proyectamos la posición 3D del sat a coords 2D de pantalla
+// y movemos el div allí. Garantiza alineación pixel-perfect con el icono.
+
+let labelsContainer = null;
+function setupManualLabels() {
+  // Crear container sobre el canvas del globo
+  const globeViz = document.getElementById("globeViz");
+  labelsContainer = document.createElement("div");
+  labelsContainer.id = "sat-labels-container";
+  labelsContainer.style.cssText =
+    "position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5";
+  globeViz.appendChild(labelsContainer);
+
+  // Crear un div por cada sat
+  for (const s of satState) {
+    const div = document.createElement("div");
+    div.className = "sat-html-label" + (s.kind === "geo" ? " geo" : "");
+    div.textContent = s.text;
+    div.style.color = s.color;
+    div.style.borderColor = s.color;
+    div.style.position = "absolute";
+    div.style.left = "0";
+    div.style.top = "0";
+    div.style.willChange = "transform";
+    labelsContainer.appendChild(div);
+    s._labelEl = div;
+  }
+}
+
+const _projVec = new THREE.Vector3();
+const _camPos = new THREE.Vector3();
+
+function updateManualLabels() {
+  if (!labelsContainer || !globe) return;
+  if (!showLabels) {
+    labelsContainer.style.display = "none";
+    return;
+  }
+  labelsContainer.style.display = "";
+
   const cam = globe.camera();
   if (!cam) return;
-  cam.getWorldPosition(_labelTmpVec);
-  const camX = _labelTmpVec.x, camY = _labelTmpVec.y, camZ = _labelTmpVec.z;
+  cam.getWorldPosition(_camPos);
+
+  const w = labelsContainer.clientWidth;
+  const h = labelsContainer.clientHeight;
+  if (w === 0 || h === 0) return;
+
   for (const s of satState) {
     if (!s._labelEl) continue;
-    // Geos: nunca ocluidos (a 36k km son siempre visibles desde fuera del globo)
-    if (s.kind === "geo") {
+    const c = globe.getCoords(s.lat, s.lon, s.alt / 6371);
+    _projVec.set(c.x, c.y, c.z);
+
+    // Test de oclusión por globo: sólo polares se ocluyen (geos están a
+    // 5.6 globe-radii — fuera del rango de oclusión normal del globo).
+    if (s.kind !== "geo") {
+      const dot = _camPos.x * c.x + _camPos.y * c.y + _camPos.z * c.z;
+      s._labelEl.style.opacity = dot > 0 ? "1" : "0.18";
+      s._labelEl.style.filter = dot > 0 ? "" : "saturate(0.4)";
+    } else {
       s._labelEl.style.opacity = "1";
+      s._labelEl.style.filter = "";
+    }
+
+    // Proyectar a NDC (-1..1) y luego a pixels
+    _projVec.project(cam);
+    if (_projVec.z > 1 || _projVec.z < -1) {
+      // detrás de cámara o fuera de frustum
+      s._labelEl.style.visibility = "hidden";
       continue;
     }
-    const c = globe.getCoords(s.lat, s.lon, s.alt / 6371);
-    const dot = camX * c.x + camY * c.y + camZ * c.z;
-    s._labelEl.style.opacity = dot > 0 ? "1" : "0.18";
-    s._labelEl.style.filter = dot > 0 ? "" : "saturate(0.4)";
+    s._labelEl.style.visibility = "";
+    const x = (_projVec.x * 0.5 + 0.5) * w;
+    const y = (1 - (_projVec.y * 0.5 + 0.5)) * h;
+    s._labelEl.style.transform =
+      `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -180%)`;
   }
 }
 
 let _footprintTickCounter = 0;
-let _occlusionTickCounter = 0;
 function animationLoop() {
   tickPositions();
-  // Pasar el array como referencia nueva (.slice()) fuerza a globe.gl
-  // a re-leer los accesors htmlLat/htmlLng en cada render. Sin esto el
-  // library cachea las posiciones por referencia y los labels se quedan
-  // estancados respecto a los iconos 3D.
   globe.customLayerData(satState);
-  globe.htmlElementsData(satState.slice());
+  updateManualLabels();           // labels propios — sub-frame sync con iconos
   updateGhostPositions(getNow());
-  if (++_occlusionTickCounter % 6 === 0) updateLabelOcclusion();
   if (showFootprints && (++_footprintTickCounter % 12 === 0)) {
     rebuildFootprints();
   }
@@ -1134,8 +1176,7 @@ async function main() {
       updateNowTable();
       updatePassesTable();
       globe.customLayerData(satState);
-      globe.htmlElementsData(satState);
-      updateLabelOcclusion();
+      updateManualLabels();
     } catch (e) {
       console.error("visibilitychange resync:", e);
     }
@@ -1153,7 +1194,7 @@ async function main() {
   $("#chk-tracks").onchange = (e) => { showTracks = e.target.checked; rebuildTracks(); };
   $("#chk-labels").onchange = (e) => {
     showLabels = e.target.checked;
-    document.body.classList.toggle("hide-sat-labels", !showLabels);
+    if (labelsContainer) labelsContainer.style.display = showLabels ? "" : "none";
   };
   $("#chk-footprints").onchange = (e) => {
     showFootprints = e.target.checked;
