@@ -15,9 +15,9 @@ const PASS_WINDOW_H = 24;
 const MIN_ELEV_DEG = 20;
 
 const GEO_COLOR = "#ffd166";
-const GEO_ICON_SCALE = 4.5;             // satélite-icono grande para geos
+const GEO_ICON_SCALE = 5.5;             // satélite-icono grande para geos
 const POLAR_SPHERE_RADIUS = 0.55;
-const GHOST_ICON_SCALE = 0.55;          // satélite-icono pequeño moviéndose
+const GHOST_ICON_SCALE = 1.1;           // antes 0.55 — desde lejos era solo un punto
 
 // Devuelve un Group THREE con forma de satélite: cuerpo + paneles + antena.
 // Color = color del sat. scale ajusta tamaño general.
@@ -79,12 +79,18 @@ function makeSatelliteIcon(color, scale = 1) {
 }
 
 // Orienta un Group/Mesh para que apunte radialmente hacia afuera desde el
-// centro de la Tierra (eje +Z del icono = "arriba"/zenith).
+// centro de la Tierra. Usa lookAt(origin) para que la rotación azimutal
+// quede determinada por el "up" del mundo (eje Y = polo norte).
+// Resultado: +Z apunta a zenith, +Y apunta hacia el polo norte celeste, +X
+// queda perpendicular en el plano tangencial → paneles solares east-west,
+// cuerpo apuntando radialmente — orientación realista.
 function orientRadial(obj, lat, lon, alt) {
   const c = globe.getCoords(lat, lon, alt);
   obj.position.set(c.x, c.y, c.z);
-  const radial = new THREE.Vector3(c.x, c.y, c.z).normalize();
-  obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), radial);
+  // lookAt(0,0,0) → local -Z apunta al origen → local +Z apunta a zenith.
+  // Up vector default = (0,1,0) = polo norte → +Y del icono = norte.
+  // Eje X (paneles solares) queda en plano tangencial east-west.
+  obj.lookAt(0, 0, 0);
 }
 const SAT_COLORS = {
   "SENTINEL-5P":  "#ff6b3d",
@@ -552,10 +558,11 @@ function rebuildFootprints() {
     .polygonsTransitionDuration(0);
 }
 
-// "Ghost satellites" — pequeños iconitos que recorren la traza orbital
-// repetidamente para mostrar dirección y velocidad de movimiento.
-// Período de animación: 4 segundos por traza (90 min reales).
-const GHOST_PERIOD_S = 4;
+// "Ghost satellites" — iconitos que recorren la traza orbital repetidamente
+// para mostrar dirección y velocidad de movimiento.
+// Período: 30 s por traza completa de 90 min (≈180× tiempo real). Antes
+// era 4 s (1350× — sensación de "máxima velocidad" que distraía).
+const GHOST_PERIOD_S = 30;
 const ghostMeshes = new Map();   // satName → THREE.Mesh
 
 function ensureGhostMeshes() {
@@ -666,8 +673,6 @@ function setupSatLayers() {
     .customThreeObjectUpdate((obj, d) => {
       if (d.kind === "geo") {
         orientRadial(obj, d.lat, d.lon, d.alt / 6371);
-        // Rotación lenta sobre eje radial (eje Z del icono) para que se mueva visualmente
-        obj.rotateZ(0.005);
       } else {
         const c = globe.getCoords(d.lat, d.lon, d.alt / 6371);
         obj.position.set(c.x, c.y, c.z);
