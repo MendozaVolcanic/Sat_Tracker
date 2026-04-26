@@ -2,6 +2,10 @@
 // Datos provienen de JSON generados desde catálogos Python locales (confiables).
 // SGP4 con satellite.js usando TLEs cacheados en repo.
 
+// Importar three.js como módulo ES (mapeado en importmap del index.html).
+// globe.gl trae three internamente pero no lo expone como global.
+import * as THREE from "three";
+
 const REFRESH_MS_TRACKS = 30000;        // recalcula trazas 90 min cada 30 s
 const REFRESH_MS_NOW_TABLE = 5000;       // tabla "sats ahora" cada 5 s
 const REFRESH_MS_PASSES_TABLE = 60000;   // tabla pasajes 24 h cada 60 s
@@ -479,7 +483,56 @@ function rebuildFootprints() {
     .polygonsTransitionDuration(0);
 }
 
-function rebuildTracks() {
+// "Ghost satellites" — pequeños iconitos que recorren la traza orbital
+// repetidamente para mostrar dirección y velocidad de movimiento.
+// Período de animación: 4 segundos por traza (90 min reales).
+const GHOST_PERIOD_S = 4;
+const ghostMeshes = new Map();   // satName → THREE.Mesh
+
+function ensureGhostMeshes() {
+  for (const r of satRecords) {
+    if (r.meta.kind === "geo") continue;
+    if (ghostMeshes.has(r.meta.name)) continue;
+    const color = SAT_COLORS[r.name] || DEFAULT_COLOR;
+    const geo = new THREE.SphereGeometry(0.4, 8, 8);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.7,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    // Halo pulsante alrededor para que se note el movimiento
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.7, 8, 8),
+      new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.18, depthWrite: false,
+      }),
+    );
+    mesh.add(halo);
+    globe.scene().add(mesh);
+    ghostMeshes.set(r.meta.name, { mesh, halo });
+  }
+}
+
+function updateGhostPositions(now) {
+  // Fracción 0..1 del ciclo según wall clock (real time, no virtualTime
+  // — porque virtualTime ya se acelera durante preview).
+  const wallSec = (Date.now() / 1000) % GHOST_PERIOD_S;
+  const frac = wallSec / GHOST_PERIOD_S;
+  // Pulso del halo: senoide
+  const pulse = 0.18 + 0.18 * Math.sin(wallSec * 2 * Math.PI / GHOST_PERIOD_S);
+
+  for (const r of satRecords) {
+    if (r.meta.kind === "geo") continue;
+    const entry = ghostMeshes.get(r.meta.name);
+    if (!entry) continue;
+    // Tiempo del ghost = now + frac * 90 min
+    const tAhead = new Date(now.getTime() + frac * TRACK_AHEAD_MIN * 60000);
+    const pos = propagate(r.satrec, tAhead);
+    if (!pos) continue;
+    const c = globe.getCoords(pos.lat, pos.lon, pos.alt / 6371);
+    entry.mesh.position.set(c.x, c.y, c.z);
+    entry.halo.material.opacity = pulse;
+  }
+}
   const now = new Date();
   const trackPaths = [];
   if (!showTracks) {
@@ -556,6 +609,7 @@ function setupSatLayers() {
     });
 
   rebuildTracks();
+  ensureGhostMeshes();
 }
 
 let _footprintTickCounter = 0;
@@ -563,6 +617,7 @@ function animationLoop() {
   tickPositions();
   globe.customLayerData(satState);
   globe.htmlElementsData(satState);
+  updateGhostPositions(getNow());
   // Footprints más pesados — refresco cada ~12 frames (~5 Hz).
   if (showFootprints && (++_footprintTickCounter % 12 === 0)) {
     rebuildFootprints();
