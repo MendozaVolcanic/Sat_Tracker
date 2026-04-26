@@ -781,13 +781,15 @@ function setupSatLayers() {
 
 let labelsContainer = null;
 function setupManualLabels() {
-  // Crear container sobre el canvas del globo
-  const globeViz = document.getElementById("globeViz");
+  // Container montado en #globe-section (que es position:relative), no en
+  // #globeViz, para que el container esté GARANTIZADO al mismo tamaño que
+  // la sección y reaccione a cambios de layout (ej: globo fullscreen).
+  const globeSection = document.getElementById("globe-section");
   labelsContainer = document.createElement("div");
   labelsContainer.id = "sat-labels-container";
   labelsContainer.style.cssText =
-    "position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5";
-  globeViz.appendChild(labelsContainer);
+    "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:5";
+  globeSection.appendChild(labelsContainer);
 
   // Crear un div por cada sat
   for (const s of satState) {
@@ -818,6 +820,12 @@ function updateManualLabels() {
 
   const cam = globe.camera();
   if (!cam) return;
+  // CRÍTICO: forzar actualización de matrixWorld y matrixWorldInverse de la
+  // cámara. THREE.js sólo las actualiza cuando renderea la escena, pero
+  // nosotros proyectamos ANTES de eso en cada frame. Sin este update, la
+  // proyección usa matrices stale del frame anterior — visible cuando el
+  // usuario rota el globo (cámara se mueve pero labels usan matriz vieja).
+  cam.updateMatrixWorld(true);
   cam.getWorldPosition(_camPos);
 
   const w = labelsContainer.clientWidth;
