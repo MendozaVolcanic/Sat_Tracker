@@ -10,6 +10,9 @@ const TRACK_STEP_S = 60;
 const PASS_WINDOW_H = 24;
 const MIN_ELEV_DEG = 20;
 
+const GEO_COLOR = "#ffd166";
+const GEO_SPHERE_RADIUS = 1.2;          // más grandes que polares
+const POLAR_SPHERE_RADIUS = 0.6;
 const SAT_COLORS = {
   "SENTINEL-5P":  "#ff6b3d",
   "TERRA":        "#4cc9f0",
@@ -35,6 +38,7 @@ let selectedVolcano = null;
 let globe = null;
 let showTracks = true;
 let showLabels = true;
+let showFootprints = false;
 
 const $ = (s) => document.querySelector(s);
 
@@ -84,7 +88,7 @@ async function loadData() {
   satMeta = sat;
   satRecords = [];
   for (const s of satMeta) {
-    if (s.kind !== "polar" || !s.norad_id) continue;
+    if (!s.norad_id) continue;
     const t = tle.satellites[String(s.norad_id)];
     if (!t) continue;
     const satrec = satellite.twoline2satrec(t.line1, t.line2);
@@ -177,10 +181,13 @@ let satState = [];
 function buildSatState() {
   satState = satRecords.map(r => ({
     name: r.meta.name,
-    color: SAT_COLORS[r.name] || DEFAULT_COLOR,
+    kind: r.meta.kind,
+    color: r.meta.kind === "geo" ? GEO_COLOR : (SAT_COLORS[r.name] || DEFAULT_COLOR),
+    radius: r.meta.kind === "geo" ? GEO_SPHERE_RADIUS : POLAR_SPHERE_RADIUS,
+    swath_km: r.meta.swath_km || 0,
     lat: 0, lon: 0, alt: 0,
     text: r.meta.name,
-    lng: 0,                  // alias para labelLng
+    lng: 0,
     labelAlt: 0,
     _satrec: r.satrec,
   }));
@@ -198,6 +205,52 @@ function tickPositions(now) {
   }
 }
 
+// Footprint = circulo en superficie de radio = swath/2 (km) alrededor del subpunto.
+// Convertimos a un polígono GeoJSON-like para globe.gl polygons layer.
+function makeFootprintPolygon(lat, lon, radiusKm, segments = 36) {
+  const R = 6371;
+  const ang = radiusKm / R;            // radio angular (rad)
+  const φ1 = lat * Math.PI / 180;
+  const λ1 = lon * Math.PI / 180;
+  const ring = [];
+  for (let i = 0; i <= segments; i++) {
+    const θ = (i / segments) * 2 * Math.PI;
+    const φ2 = Math.asin(Math.sin(φ1) * Math.cos(ang) +
+                          Math.cos(φ1) * Math.sin(ang) * Math.cos(θ));
+    const λ2 = λ1 + Math.atan2(
+      Math.sin(θ) * Math.sin(ang) * Math.cos(φ1),
+      Math.cos(ang) - Math.sin(φ1) * Math.sin(φ2),
+    );
+    ring.push([((λ2 * 180 / Math.PI + 540) % 360) - 180, φ2 * 180 / Math.PI]);
+  }
+  return ring;
+}
+
+function rebuildFootprints() {
+  if (!showFootprints) {
+    globe.polygonsData([]);
+    return;
+  }
+  const polys = [];
+  for (const s of satState) {
+    if (s.kind === "geo" || !s.swath_km) continue;
+    const ring = makeFootprintPolygon(s.lat, s.lon, s.swath_km / 2);
+    polys.push({
+      geometry: { type: "Polygon", coordinates: [ring] },
+      color: s.color,
+      name: s.name,
+    });
+  }
+  globe
+    .polygonsData(polys)
+    .polygonGeoJsonGeometry("geometry")
+    .polygonAltitude(0.003)
+    .polygonCapColor(d => d.color + "26")     // alpha bajito
+    .polygonSideColor(d => d.color + "10")
+    .polygonStrokeColor(d => d.color)
+    .polygonsTransitionDuration(0);
+}
+
 function rebuildTracks() {
   const now = new Date();
   const trackPaths = [];
@@ -206,6 +259,7 @@ function rebuildTracks() {
     return;
   }
   for (const r of satRecords) {
+    if (r.meta.kind === "geo") continue;  // geoestacionarios no tienen "traza" útil
     const color = SAT_COLORS[r.name] || DEFAULT_COLOR;
     const pts = [];
     for (let i = 0; i <= TRACK_AHEAD_MIN * 60 / TRACK_STEP_S; i++) {
@@ -240,9 +294,20 @@ function setupSatLayers() {
   globe
     .customLayerData(satState)
     .customThreeObject(d => {
-      const geo = new THREE.SphereGeometry(0.6, 16, 16);
-      const mat = new THREE.MeshBasicMaterial({ color: d.color });
-      return new THREE.Mesh(geo, mat);
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(d.radius, 16, 16),
+        new THREE.MeshBasicMaterial({ color: d.color }),
+      );
+      if (d.kind === "geo") {
+        // Halo amarillo tenue para geoestacionarios — más visibles
+        const halo = new THREE.Mesh(
+          new THREE.RingGeometry(d.radius * 1.6, d.radius * 1.9, 24),
+          new THREE.MeshBasicMaterial({ color: d.color, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }),
+        );
+        halo.lookAt(0, 0, 0);
+        sphere.add(halo);
+      }
+      return sphere;
     })
     .customThreeObjectUpdate((obj, d) => {
       Object.assign(obj.position, globe.getCoords(d.lat, d.lon, d.alt / 6371));
@@ -259,12 +324,16 @@ function setupSatLayers() {
   rebuildTracks();
 }
 
+let _footprintTickCounter = 0;
 function animationLoop() {
   const now = new Date();
   tickPositions(now);
-  // Forzar a globe.gl que reaplique customThreeObjectUpdate / labels en frame.
   globe.customLayerData(satState);
   globe.labelsData(satState);
+  // Footprints más pesados — refresco cada ~12 frames (~5 Hz).
+  if (showFootprints && (++_footprintTickCounter % 12 === 0)) {
+    rebuildFootprints();
+  }
   requestAnimationFrame(animationLoop);
 }
 
@@ -315,6 +384,7 @@ function updatePassesTable() {
   const t1 = new Date(now.getTime() + PASS_WINDOW_H * 3600 * 1000);
   const rows = [];
   for (const r of satRecords) {
+    if (r.meta.kind === "geo") continue;
     const passes = findPasses(r.satrec, selectedVolcano, now, t1);
     for (const p of passes) {
       const dataAt = new Date(p.set.getTime() + r.meta.nrt_latency_min * 60000);
@@ -423,6 +493,10 @@ async function main() {
   $("#chk-labels").onchange = (e) => {
     showLabels = e.target.checked;
     globe.labelText(d => showLabels ? d.text : "");
+  };
+  $("#chk-footprints").onchange = (e) => {
+    showFootprints = e.target.checked;
+    rebuildFootprints();
   };
 }
 

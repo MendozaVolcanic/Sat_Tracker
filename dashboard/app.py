@@ -130,12 +130,13 @@ if not tles:
 
 # ── Tabs ────────────────────────────────────────────────────────────────
 
-tab_table, tab_globe, tab_globe3d, tab_timeline, tab_alerts, tab_geo = st.tabs([
+tab_table, tab_globe, tab_globe3d, tab_timeline, tab_alerts, tab_heatmap, tab_geo = st.tabs([
     "📋 Tabla pasajes",
     "🌍 Mapa en vivo",
     "🌐 Globo 3D",
     "⏱️ Timeline 24 h",
     "🔔 Alertas",
+    "📊 Cobertura histórica",
     "📡 Geoestacionarios",
 ])
 
@@ -486,6 +487,99 @@ with tab_alerts:
                     st.success(f"Enviado ({code})")
                 else:
                     st.error(f"Falló ({code}): {body}")
+
+
+# ── Tab Cobertura histórica (idea e) ────────────────────────────────────
+
+with tab_heatmap:
+    st.subheader("📊 Cuántos pasajes útiles tuvo cada volcán × satélite")
+    st.caption(
+        "Ventana retrospectiva con elev mínima del slider. "
+        "Útil para detectar volcanes con cobertura pobre o pasajes saltados."
+    )
+
+    cov_days = st.slider("Ventana (días hacia atrás)", 1, 30, 7)
+
+    @st.cache_data(ttl=3600, show_spinner="Calculando cobertura histórica…")
+    def compute_coverage(days: int, min_elev_int: int,
+                         volc_names: tuple[str, ...],
+                         norad_tuple: tuple[int, ...]) -> pd.DataFrame:
+        from src.orbit import find_passes
+        t1 = now
+        t0 = now - timedelta(days=days)
+        rows = []
+        norad_to_meta = {s.norad_id: s for s in polar_sats_meta if s.norad_id in norad_tuple}
+        for vname in volc_names:
+            v = volc_mod.by_name(vname)
+            if v is None:
+                continue
+            for nid, meta in norad_to_meta.items():
+                sat_obj = sat_objects.get(nid)
+                if sat_obj is None:
+                    continue
+                passes = find_passes(sat_obj, v, t0, t1, min_elev=float(min_elev_int))
+                rows.append({
+                    "Volcán": v.name,
+                    "Zona": v.zone,
+                    "Satélite": meta.name,
+                    "Pasajes": len(passes),
+                    "Por día": round(len(passes) / max(days, 1), 2),
+                })
+        return pd.DataFrame(rows)
+
+    cov_df = compute_coverage(
+        cov_days,
+        int(min_elev),
+        tuple(v.name for v in volcs),
+        tuple(s.norad_id for s in polar_sats_meta if s.norad_id),
+    )
+
+    if cov_df.empty:
+        st.info("Sin datos.")
+    else:
+        # Pivot: filas volcanes, columnas satélites
+        pivot = cov_df.pivot_table(
+            index="Volcán", columns="Satélite", values="Pasajes",
+            aggfunc="sum", fill_value=0,
+        )
+        # Ordenar volcanes por total de pasajes (los menos cubiertos arriba — alerta)
+        pivot["TOTAL"] = pivot.sum(axis=1)
+        pivot = pivot.sort_values("TOTAL", ascending=True)
+        total_col = pivot.pop("TOTAL")
+        pivot.insert(0, "TOTAL", total_col)
+
+        st.markdown(f"**Volcanes con menor cobertura** (último {cov_days} d):")
+        worst = pivot.head(5)[["TOTAL"]].rename(columns={"TOTAL": "Pasajes totales"})
+        st.dataframe(worst, use_container_width=True)
+
+        st.markdown(f"**Heatmap completo** (volcán × satélite, total {cov_days} d):")
+        # Heatmap Plotly
+        fig_hm = go.Figure(data=go.Heatmap(
+            z=pivot.drop(columns=["TOTAL"]).values,
+            x=pivot.drop(columns=["TOTAL"]).columns,
+            y=pivot.index,
+            colorscale="Viridis",
+            colorbar=dict(title="Pasajes"),
+            hovertemplate="<b>%{y}</b><br>%{x}: %{z} pasajes<extra></extra>",
+        ))
+        fig_hm.update_layout(
+            height=max(400, 18 * len(pivot.index) + 100),
+            xaxis_title="Satélite",
+            yaxis_title="Volcán (orden ascendente — los con menos cobertura arriba)",
+            margin=dict(l=10, r=10, t=10, b=80),
+        )
+        st.plotly_chart(fig_hm, use_container_width=True)
+
+        st.markdown(f"**Pasajes/día por satélite** (promedio):")
+        per_sat = cov_df.groupby("Satélite")["Pasajes"].sum().sort_values(ascending=False)
+        per_sat_df = pd.DataFrame({
+            "Pasajes totales": per_sat,
+            "Por volcán/día": (per_sat / (len(volcs) * cov_days)).round(2),
+        })
+        st.dataframe(per_sat_df, use_container_width=True)
+
+        csv = cov_df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ CSV (datos crudos)", csv, "cobertura.csv", "text/csv")
 
 
 # ── Tab 4: Geoestacionarios ─────────────────────────────────────────────

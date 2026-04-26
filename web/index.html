@@ -27,6 +27,7 @@
   <div class="header-meta">
     <div><span class="lbl">UTC ahora</span><span id="now-utc">—</span></div>
     <div><span class="lbl">TLE actualizado</span><span id="tle-age">—</span></div>
+    <div><a href="guardia.html">Modo guardia ↗</a></div>
     <div><a href="https://github.com/MendozaVolcanic/Sat_Tracker" target="_blank" rel="noopener">GitHub ↗</a></div>
   </div>
 </header>
@@ -36,12 +37,14 @@
     <div id="globeViz"></div>
     <div class="legend">
       <div class="legend-row"><span class="dot volc"></span> Volcán activo (rojo si prioritario)</div>
-      <div class="legend-row"><span class="dot sat"></span> Satélite — posición ahora</div>
+      <div class="legend-row"><span class="dot sat"></span> Satélite polar — posición ahora</div>
+      <div class="legend-row"><span class="dot geo"></span> Geoestacionario (~36 000 km)</div>
       <div class="legend-row"><span class="line"></span> Traza terrestre próximos 90 min</div>
       <button id="btn-chile">Centrar Chile</button>
       <button id="btn-world">Vista global</button>
       <label><input type="checkbox" id="chk-tracks" checked /> Mostrar trazas</label>
       <label><input type="checkbox" id="chk-labels" checked /> Etiquetas sat</label>
+      <label><input type="checkbox" id="chk-footprints" /> Footprint (swath)</label>
     </div>
   </section>
 

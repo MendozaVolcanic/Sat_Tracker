@@ -49,6 +49,7 @@ def main() -> int:
             "nrt_latency_min": s.nrt_latency_min,
             "access_url": s.access_url,
             "note": s.note,
+            "swath_km": s.swath_km,
         }
         for s in satellites.CATALOG
     ]
@@ -59,7 +60,7 @@ def main() -> int:
     print(f"  → web/data/satellites.json: {len(sat_data)} satélites")
 
     # TLEs
-    norad = [s.norad_id for s in satellites.polars() if s.norad_id]
+    norad = [s.norad_id for s in satellites.CATALOG if s.norad_id]
     tles = tle_fetcher.get_tles_for(norad, force_refresh=True)
     tle_data = {
         "fetched_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",

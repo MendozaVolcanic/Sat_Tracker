@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sat_Tracker · Modo Guardia OVDAS</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<style>
+  body { overflow-y: auto; }
+  .guardia-shell {
+    height: 100vh; display: grid;
+    grid-template-rows: 70px 1fr 60px;
+    background: #060810;
+  }
+  .gh {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 28px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #131829 0%, #0b0e1a 100%);
+  }
+  .gh h1 { font-size: 22px; letter-spacing: 1px; }
+  .gh-clock {
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-size: 28px; font-weight: 700;
+    color: var(--accent); letter-spacing: 2px;
+  }
+  .gh-clock-local { color: var(--fg-muted); font-size: 14px; margin-top: 2px; }
+
+  .gbody {
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: 14px; padding: 14px;
+    overflow: hidden;
+  }
+  .gcol { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .gpanel {
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .gpanel h2 {
+    font-size: 13px; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .imminent { flex: 0 0 auto; }
+  .imminent .row {
+    display: grid; grid-template-columns: 1fr 110px 80px;
+    align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 16px;
+  }
+  .imminent .row:last-child { border-bottom: none; }
+  .imminent .sat-name { font-weight: 700; font-size: 18px; }
+  .imminent .sat-name .sensor { color: var(--fg-muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+  .imminent .vol { color: var(--accent-2); font-size: 14px; }
+  .imminent .countdown {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 22px; font-weight: 700; text-align: right;
+  }
+  .imminent .countdown.urgent { color: #ff3b30; animation: pulse 1.4s infinite; }
+  .imminent .countdown.soon { color: #ff9500; }
+  .imminent .countdown.normal { color: var(--fg); }
+  .imminent .elev { font-size: 18px; font-weight: 600; text-align: right; padding-right: 10px; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .upcoming { flex: 1 1 auto; overflow-y: auto; }
+  .upcoming table { font-size: 14px; }
+  .upcoming th, .upcoming td { padding: 7px 8px; }
+
+  .vol-grid {
+    flex: 1 1 auto; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
+  }
+  .vol-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    display: flex; flex-direction: column;
+  }
+  .vol-card .vname { font-weight: 600; }
+  .vol-card .next-sat { font-size: 11px; color: var(--accent-2); margin-top: 4px; }
+  .vol-card .next-when { font-size: 11px; color: var(--fg-muted); }
+  .vol-card.priority { border-color: var(--accent); background: rgba(255,107,61,0.07); }
+
+  .gfooter {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 28px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--fg-muted); font-size: 12px;
+  }
+  .gfooter .stat { display: flex; gap: 24px; }
+  .gfooter .stat b { color: var(--fg); font-size: 14px; }
+
+  #fullscreen-btn {
+    width: auto; padding: 4px 12px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="guardia-shell">
+  <header class="gh">
+    <div>
+      <h1>🛰️ Sat_Tracker · MODO GUARDIA</h1>
+      <div style="font-size:12px;color:var(--fg-muted)">RNVV / SERNAGEOMIN — pasajes inminentes</div>
+    </div>
+    <div style="text-align:right">
+      <div class="gh-clock" id="clock-utc">—:—:— UTC</div>
+      <div class="gh-clock-local" id="clock-local">—:—:— local</div>
+    </div>
+    <div>
+      <button id="fullscreen-btn">Pantalla completa</button>
+      <a href="index.html" style="font-size:12px">← volver al globo</a>
+    </div>
+  </header>
+
+  <main class="gbody">
+    <div class="gcol">
+      <section class="gpanel imminent">
+        <h2>🚨 Inminentes — próximos 30 min</h2>
+        <div id="imminent-list"></div>
+      </section>
+      <section class="gpanel upcoming">
+        <h2>⏱️ Próximos pasajes — siguientes 6 h</h2>
+        <table>
+          <thead><tr>
+            <th>Sat</th><th>Volcán</th><th>Inicio</th><th>Elev</th><th>Datos</th>
+          </tr></thead>
+          <tbody id="upcoming-list"></tbody>
+        </table>
+      </section>
+    </div>
+    <div class="gcol">
+      <section class="gpanel">
+        <h2>🌋 Volcanes RNVV — próximo pasaje sobre cada uno</h2>
+        <div class="vol-grid" id="vol-grid"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="gfooter">
+    <div class="stat">
+      <div>Volcanes activos: <b id="stat-volc">0</b></div>
+      <div>Sats trackeados: <b id="stat-sats">0</b></div>
+      <div>Pasajes próximas 6h: <b id="stat-passes">0</b></div>
+      <div>TLE actualizado: <b id="stat-tle">—</b></div>
+    </div>
+    <div>Refresca solo · datos calculados en navegador (SGP4)</div>
+  </footer>
+</div>
+
+<script type="module" src="guardia.js"></script>
+</body>
+</html>

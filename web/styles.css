@@ -90,6 +90,7 @@ main {
 }
 .legend .dot.volc { background: #e74c3c; }
 .legend .dot.sat { background: #4cc9f0; }
+.legend .dot.geo { background: #ffd166; box-shadow: 0 0 0 2px rgba(255,209,102,0.3); }
 .legend .line { width: 14px; height: 2px; background: #4cc9f0; display: inline-block; }
 .legend button, .legend label {
   background: var(--bg-panel-2);
