@@ -1113,6 +1113,26 @@ async function main() {
     setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
   });
 
+  // Cuando la pestaña vuelve a ser visible, resincronizar todo. El browser
+  // throttlea requestAnimationFrame con tab oculta (~1 fps o menos), así que
+  // íconos y labels se quedaban estancados en una posición vieja mientras
+  // las trazas (setInterval cada 30s) seguían avanzando — daba sensación de
+  // que sat y línea no coincidían hasta que el próximo rAF "saltaba" al lugar.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    try {
+      tickPositions();
+      rebuildTracks();
+      updateNowTable();
+      updatePassesTable();
+      globe.customLayerData(satState);
+      globe.htmlElementsData(satState);
+      updateLabelOcclusion();
+    } catch (e) {
+      console.error("visibilitychange resync:", e);
+    }
+  });
+
   // En móvil, paneles 3+ colapsables (los 2 primeros — Volcán y Próximos
   // pasajes — siempre abiertos, son lo más usado).
   document.querySelectorAll(".panel h2").forEach(h => {
