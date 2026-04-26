@@ -431,13 +431,11 @@ function tickPositions(_unused) {
     s.lon = pos.lon;
     s.lng = pos.lon;
     s.alt = pos.alt;
-    // labelAlt: misma altitud que el icono 3D para que label y sat
-    // coincidan exactamente cuando se proyectan a pantalla. Antes usaba
-    // un offset (+0.05) que creaba desfase visible cuando la cámara estaba
-    // cerca del globo. Para geos, la altitud real (5.6 globe radii) es
-    // tan grande que el icono se renderiza fuera del frustum visible —
-    // dejamos label en altitud baja (0.4) cerca del globo.
-    s.labelAlt = s.kind === "geo" ? 0.4 : pos.alt / 6371;
+    // labelAlt: misma altitud que el icono 3D para que ambos se proyecten
+    // al mismo punto de pantalla. El offset visual (label arriba) es 100%
+    // CSS via transform translate-Y. Para geos: el icono se renderiza a
+    // altitud comprimida 0.6 (no la real 5.6) — el label usa la misma.
+    s.labelAlt = s.kind === "geo" ? 0.6 : pos.alt / 6371;
   }
 }
 
