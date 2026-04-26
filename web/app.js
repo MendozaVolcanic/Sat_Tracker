@@ -15,8 +15,77 @@ const PASS_WINDOW_H = 24;
 const MIN_ELEV_DEG = 20;
 
 const GEO_COLOR = "#ffd166";
-const GEO_SPHERE_RADIUS = 5.0;          // grande para verse a 36k km de distancia
-const POLAR_SPHERE_RADIUS = 0.6;
+const GEO_ICON_SCALE = 4.5;             // satélite-icono grande para geos
+const POLAR_SPHERE_RADIUS = 0.55;
+const GHOST_ICON_SCALE = 0.55;          // satélite-icono pequeño moviéndose
+
+// Devuelve un Group THREE con forma de satélite: cuerpo + paneles + antena.
+// Color = color del sat. scale ajusta tamaño general.
+function makeSatelliteIcon(color, scale = 1) {
+  const group = new THREE.Group();
+  const colorObj = new THREE.Color(color);
+
+  // Cuerpo (caja amarillenta tipo bus)
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(scale * 0.9, scale * 0.7, scale * 1.3),
+    new THREE.MeshBasicMaterial({ color: 0xeeeecc }),
+  );
+  group.add(body);
+
+  // Paneles solares (rectángulos azul oscuro a cada lado)
+  const panelMat = new THREE.MeshBasicMaterial({
+    color: 0x1f3a8a, side: THREE.DoubleSide,
+  });
+  const panelGeo = new THREE.BoxGeometry(scale * 2.4, scale * 0.04, scale * 0.9);
+  const left = new THREE.Mesh(panelGeo, panelMat);
+  left.position.x = -scale * 1.7;
+  group.add(left);
+  const right = new THREE.Mesh(panelGeo, panelMat);
+  right.position.x = scale * 1.7;
+  group.add(right);
+
+  // Líneas de los paneles (gridlines)
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x4cc9f0, opacity: 0.4, transparent: true });
+  for (const side of [-1, 1]) {
+    for (let i = -1; i <= 1; i += 0.5) {
+      if (i === 0) continue;
+      const pts = [
+        new THREE.Vector3(side * scale * (0.5 + Math.abs(i) * 1.2), scale * 0.05, scale * i * 0.4),
+        new THREE.Vector3(side * scale * (0.5 + Math.abs(i) * 1.2), -scale * 0.05, scale * i * 0.4),
+      ];
+      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat));
+    }
+  }
+
+  // Antena (cilindro saliendo de un extremo, en el color del sat)
+  const ant = new THREE.Mesh(
+    new THREE.CylinderGeometry(scale * 0.05, scale * 0.05, scale * 1.0, 6),
+    new THREE.MeshBasicMaterial({ color: colorObj }),
+  );
+  ant.position.z = scale * 0.95;
+  ant.rotation.x = Math.PI / 2;
+  group.add(ant);
+
+  // Disco de antena en la punta
+  const dish = new THREE.Mesh(
+    new THREE.SphereGeometry(scale * 0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: colorObj }),
+  );
+  dish.position.z = scale * 1.45;
+  dish.rotation.x = -Math.PI / 2;
+  group.add(dish);
+
+  return group;
+}
+
+// Orienta un Group/Mesh para que apunte radialmente hacia afuera desde el
+// centro de la Tierra (eje +Z del icono = "arriba"/zenith).
+function orientRadial(obj, lat, lon, alt) {
+  const c = globe.getCoords(lat, lon, alt);
+  obj.position.set(c.x, c.y, c.z);
+  const radial = new THREE.Vector3(c.x, c.y, c.z).normalize();
+  obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), radial);
+}
 const SAT_COLORS = {
   "SENTINEL-5P":  "#ff6b3d",
   "TERRA":        "#4cc9f0",
@@ -271,7 +340,7 @@ function buildSatState() {
     name: r.meta.name,
     kind: r.meta.kind,
     color: r.meta.kind === "geo" ? GEO_COLOR : (SAT_COLORS[r.name] || DEFAULT_COLOR),
-    radius: r.meta.kind === "geo" ? GEO_SPHERE_RADIUS : POLAR_SPHERE_RADIUS,
+    radius: POLAR_SPHERE_RADIUS,
     swath_km: r.meta.swath_km || 0,
     lat: 0, lon: 0, alt: 0,
     text: r.meta.name,
@@ -494,42 +563,40 @@ function ensureGhostMeshes() {
     if (r.meta.kind === "geo") continue;
     if (ghostMeshes.has(r.meta.name)) continue;
     const color = SAT_COLORS[r.name] || DEFAULT_COLOR;
-    const geo = new THREE.SphereGeometry(0.4, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.7,
+    const icon = makeSatelliteIcon(color, GHOST_ICON_SCALE);
+    icon.traverse(o => {
+      if (o.material) {
+        o.material = o.material.clone();
+        o.material.transparent = true;
+        o.material.opacity = (o.material.opacity || 1) * 0.85;
+      }
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    // Halo pulsante alrededor para que se note el movimiento
+    // Halo glow para que se note el movimiento
     const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 8, 8),
+      new THREE.SphereGeometry(GHOST_ICON_SCALE * 1.6, 12, 12),
       new THREE.MeshBasicMaterial({
-        color, transparent: true, opacity: 0.18, depthWrite: false,
+        color, transparent: true, opacity: 0.2, depthWrite: false,
       }),
     );
-    mesh.add(halo);
-    globe.scene().add(mesh);
-    ghostMeshes.set(r.meta.name, { mesh, halo });
+    icon.add(halo);
+    globe.scene().add(icon);
+    ghostMeshes.set(r.meta.name, { mesh: icon, halo });
   }
 }
 
 function updateGhostPositions(now) {
-  // Fracción 0..1 del ciclo según wall clock (real time, no virtualTime
-  // — porque virtualTime ya se acelera durante preview).
   const wallSec = (Date.now() / 1000) % GHOST_PERIOD_S;
   const frac = wallSec / GHOST_PERIOD_S;
-  // Pulso del halo: senoide
-  const pulse = 0.18 + 0.18 * Math.sin(wallSec * 2 * Math.PI / GHOST_PERIOD_S);
+  const pulse = 0.15 + 0.15 * Math.sin(wallSec * 2 * Math.PI / GHOST_PERIOD_S);
 
   for (const r of satRecords) {
     if (r.meta.kind === "geo") continue;
     const entry = ghostMeshes.get(r.meta.name);
     if (!entry) continue;
-    // Tiempo del ghost = now + frac * 90 min
     const tAhead = new Date(now.getTime() + frac * TRACK_AHEAD_MIN * 60000);
     const pos = propagate(r.satrec, tAhead);
     if (!pos) continue;
-    const c = globe.getCoords(pos.lat, pos.lon, pos.alt / 6371);
-    entry.mesh.position.set(c.x, c.y, c.z);
+    orientRadial(entry.mesh, pos.lat, pos.lon, pos.alt / 6371);
     entry.halo.material.opacity = pulse;
   }
 }
@@ -573,27 +640,38 @@ function rebuildTracks() {
 
 function setupSatLayers() {
   buildSatState();
-  // Custom layer: una esfera por satélite, persistente.
+  // Custom layer: por sat, según tipo:
+  //   - Polar: esfera pequeña en posición actual (dot bright)
+  //   - Geo: ícono 3D de satélite a 36k km (cuerpo + paneles + antena)
   globe
     .customLayerData(satState)
     .customThreeObject(d => {
-      const sphere = new THREE.Mesh(
+      if (d.kind === "geo") {
+        const icon = makeSatelliteIcon(d.color, GEO_ICON_SCALE);
+        // Halo brillante para que se note a la distancia
+        const halo = new THREE.Mesh(
+          new THREE.SphereGeometry(GEO_ICON_SCALE * 0.6, 16, 16),
+          new THREE.MeshBasicMaterial({
+            color: d.color, transparent: true, opacity: 0.18, depthWrite: false,
+          }),
+        );
+        icon.add(halo);
+        return icon;
+      }
+      return new THREE.Mesh(
         new THREE.SphereGeometry(d.radius, 16, 16),
         new THREE.MeshBasicMaterial({ color: d.color }),
       );
-      if (d.kind === "geo") {
-        // Halo amarillo tenue para geoestacionarios — más visibles
-        const halo = new THREE.Mesh(
-          new THREE.RingGeometry(d.radius * 1.6, d.radius * 1.9, 24),
-          new THREE.MeshBasicMaterial({ color: d.color, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }),
-        );
-        halo.lookAt(0, 0, 0);
-        sphere.add(halo);
-      }
-      return sphere;
     })
     .customThreeObjectUpdate((obj, d) => {
-      Object.assign(obj.position, globe.getCoords(d.lat, d.lon, d.alt / 6371));
+      if (d.kind === "geo") {
+        orientRadial(obj, d.lat, d.lon, d.alt / 6371);
+        // Rotación lenta sobre eje radial (eje Z del icono) para que se mueva visualmente
+        obj.rotateZ(0.005);
+      } else {
+        const c = globe.getCoords(d.lat, d.lon, d.alt / 6371);
+        obj.position.set(c.x, c.y, c.z);
+      }
     });
 
   // Labels via HTML elements — siempre renderizan, no se auto-ocultan
